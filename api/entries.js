@@ -10,6 +10,7 @@ function pageToEntry(page) {
   const props = page.properties;
   return {
     text: (props["일기"]?.rich_text || []).map((t) => t.plain_text).join(""),
+    rating: props["기분"]?.number || 0,
     photos: (props["사진"]?.files || []).map((f) => ({
       url: f.external?.url || f.file?.url,
       name: f.name,
@@ -26,6 +27,14 @@ async function findPageForDate(conn, date) {
   const data = await queryRes.json();
   if (!queryRes.ok) throw new Error(JSON.stringify(data));
   return data.results?.[0] || null;
+}
+
+async function ensureRatingProperty(conn) {
+  await fetch(`https://api.notion.com/v1/databases/${conn.databaseId}`, {
+    method: "PATCH",
+    headers: notionHeaders(conn.accessToken),
+    body: JSON.stringify({ properties: { 기분: { number: {} } } }),
+  });
 }
 
 export default async function handler(req, res) {
@@ -61,12 +70,22 @@ export default async function handler(req, res) {
         if (date) entries[date.slice(0, 10)] = pageToEntry(page);
       }
       const limit = PLAN_LIMITS[conn.plan || "free"];
-      res.status(200).json({ entries, plan: conn.plan || "free", photoLimit: limit });
+      res.status(200).json({
+        entries,
+        plan: conn.plan || "free",
+        photoLimit: limit,
+        readOnly: !!conn.readOnly,
+      });
       return;
     }
 
     if (req.method === "PATCH") {
-      const { date, text, addPhoto, removePhoto } = req.body;
+      if (conn.readOnly) {
+        res.status(403).json({ error: "read_only" });
+        return;
+      }
+
+      const { date, text, addPhoto, removePhoto, rating, reorderPhotos } = req.body;
       if (!date) {
         res.status(400).json({ error: "date_required" });
         return;
@@ -86,11 +105,20 @@ export default async function handler(req, res) {
       const properties = {};
       if (typeof text === "string") properties["일기"] = { rich_text: toRichText(text) };
 
+      if (typeof rating === "number") {
+        await ensureRatingProperty(conn);
+        properties["기분"] = { number: rating };
+      }
+
       if (addPhoto || removePhoto) {
         let files = page?.properties?.["사진"]?.files || [];
         if (removePhoto) files = files.filter((f) => (f.external?.url || f.file?.url) !== removePhoto.url);
         if (addPhoto) files = [...files, { type: "external", name: addPhoto.name || "photo", external: { url: addPhoto.url } }];
         properties["사진"] = { files };
+      } else if (Array.isArray(reorderPhotos)) {
+        properties["사진"] = {
+          files: reorderPhotos.map((p) => ({ type: "external", name: p.name || "photo", external: { url: p.url } })),
+        };
       }
 
       if (!page) {

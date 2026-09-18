@@ -61,6 +61,7 @@ export default async function handler(req, res) {
           날짜: { date: {} },
           일기: { rich_text: {} },
           사진: { files: {} },
+          기분: { number: {} },
         },
       }),
     });
