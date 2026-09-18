@@ -99,7 +99,11 @@ export default async function handler(req, res) {
           headers: notionHeaders(conn.accessToken),
           body: JSON.stringify({
             parent: { database_id: conn.databaseId },
-            properties: { 날짜: { date: { start: date } }, ...properties },
+            properties: {
+              이름: { title: [{ text: { content: date } }] },
+              날짜: { date: { start: date } },
+              ...properties,
+            },
           }),
         });
         page = await createRes.json();

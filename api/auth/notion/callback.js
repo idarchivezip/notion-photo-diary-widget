@@ -57,6 +57,7 @@ export default async function handler(req, res) {
         parent: { type: "page_id", page_id: parentPage.id },
         title: [{ type: "text", text: { content: "포토 다이어리" } }],
         properties: {
+          이름: { title: {} },
           날짜: { date: {} },
           일기: { rich_text: {} },
           사진: { files: {} },
