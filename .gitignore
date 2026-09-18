@@ -1,0 +1,5 @@
+.firebase/
+firebase-debug.log
+.DS_Store
+node_modules/
+.vercel/

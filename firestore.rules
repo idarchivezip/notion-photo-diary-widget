@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 노션 access token 등 민감한 정보가 담긴 컬렉션이라, 서버(Firebase Admin SDK, 즉 이 프로젝트의
+    // Vercel API 라우트)만 접근하도록 클라이언트 read/write는 전부 막아둡니다.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

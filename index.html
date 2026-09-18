@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포토 다이어리</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- 노션 연결 화면 -->
+  <section id="connect-screen" class="screen" hidden>
+    <div class="connect-card">
+      <h1 class="brand">📔 포토 다이어리</h1>
+      <p class="sub">노션에 연결하면 사진과 일기가 내 노션 데이터베이스에 그대로 저장돼요. 저장할 페이지를 하나 골라주시면, 그 안에 다이어리 데이터베이스가 자동으로 만들어집니다.</p>
+      <a id="connect-btn" class="connect-btn" href="/api/auth/notion/start">노션에 연결하기</a>
+      <p class="connect-error" id="connect-error" hidden></p>
+    </div>
+  </section>
+
+  <div id="welcome-banner" class="welcome-banner" hidden>
+    <p id="welcome-text">✨ 노션 연결이 완료됐어요! 아래 링크를 복사해서 Notion에 임베드하세요. <b>이 링크를 잃어버리면 다시 접근할 수 없으니</b> 꼭 저장해두세요.</p>
+    <div class="link-row">
+      <input type="text" id="my-link-input" readonly>
+      <button id="copy-link-btn">복사</button>
+    </div>
+    <div class="banner-actions">
+      <button id="dismiss-banner-btn" class="text-btn">닫기</button>
+      <button id="regenerate-link-btn" class="text-btn danger">링크 재발급</button>
+    </div>
+  </div>
+
+  <section id="main-screen" class="screen" hidden>
+    <header class="topbar">
+      <div class="topbar-left">
+        <button id="prev-month-btn" class="nav-btn" aria-label="이전 달">‹</button>
+        <h2 id="month-label"></h2>
+        <button id="next-month-btn" class="nav-btn" aria-label="다음 달">›</button>
+      </div>
+      <div class="topbar-right">
+        <button id="show-settings-btn" class="text-btn">⚙️ 설정</button>
+        <button id="show-link-btn" class="text-btn">🔗 내 링크</button>
+      </div>
+    </header>
+
+    <div class="weekday-row">
+      <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+    </div>
+
+    <div id="calendar-grid" class="calendar-grid"></div>
+  </section>
+
+  <!-- 설정 모달 -->
+  <div id="settings-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <button id="settings-close-btn" class="modal-close" aria-label="닫기">×</button>
+      <h3>설정</h3>
+
+      <div class="settings-group">
+        <p class="settings-label">테마</p>
+        <div class="segmented" id="theme-segmented">
+          <button type="button" data-value="light">라이트</button>
+          <button type="button" data-value="dark">다크</button>
+          <button type="button" data-value="system">시스템</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <p class="settings-label">강조 색상</p>
+        <div class="swatch-row" id="accent-swatches">
+          <button type="button" class="swatch" data-color="#e78895" style="background:#e78895"></button>
+          <button type="button" class="swatch" data-color="#e0a458" style="background:#e0a458"></button>
+          <button type="button" class="swatch" data-color="#7fb069" style="background:#7fb069"></button>
+          <button type="button" class="swatch" data-color="#5b8def" style="background:#5b8def"></button>
+          <button type="button" class="swatch" data-color="#9b7ede" style="background:#9b7ede"></button>
+          <input type="color" id="accent-picker" value="#e78895" aria-label="직접 선택">
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <p class="settings-label">날짜 칸 모서리</p>
+        <div class="segmented" id="corner-segmented">
+          <button type="button" data-value="round">둥근 모서리</button>
+          <button type="button" data-value="square">각진 모서리</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 하루 상세 모달 -->
+  <div id="day-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <button id="modal-close-btn" class="modal-close" aria-label="닫기">×</button>
+      <h3 id="modal-date-label"></h3>
+
+      <div id="photo-grid" class="photo-grid"></div>
+
+      <label class="upload-label">
+        📷 사진 추가
+        <input type="file" id="photo-input" accept="image/*" multiple hidden>
+      </label>
+      <div id="upload-status" class="upload-status"></div>
+
+      <textarea id="diary-text" class="diary-textarea" placeholder="오늘 하루는 어땠나요?"></textarea>
+      <button id="save-diary-btn" class="save-btn">일기 저장</button>
+      <p class="save-hint" id="save-hint" hidden>저장되었습니다 ✓</p>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
