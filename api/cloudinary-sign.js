@@ -14,16 +14,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const queryRes = await fetch(`https://api.notion.com/v1/databases/${conn.databaseId}/query`, {
-      method: "POST",
-      headers: notionHeaders(conn.accessToken),
-      body: JSON.stringify({ filter: { property: "날짜", date: { equals: date } } }),
-    });
-    const data = await queryRes.json();
-    if (!queryRes.ok) throw new Error(JSON.stringify(data));
-
     if (!replace) {
-      // 교체(재자르기) 업로드는 기존 사진 한 장을 대체할 뿐 순증가가 없으니 한도 검사를 건너뜀.
+      // 교체(재자르기) 업로드는 기존 사진 한 장을 대체할 뿐 순증가가 없으니, 한도 검사용 노션 조회 자체를 건너뜀.
+      const queryRes = await fetch(`https://api.notion.com/v1/databases/${conn.databaseId}/query`, {
+        method: "POST",
+        headers: notionHeaders(conn.accessToken),
+        body: JSON.stringify({ filter: { property: "날짜", date: { equals: date } } }),
+      });
+      const data = await queryRes.json();
+      if (!queryRes.ok) throw new Error(JSON.stringify(data));
+
       const existingCount = data.results?.[0]?.properties?.["사진"]?.files?.length || 0;
       const limit = PLAN_LIMITS[conn.plan || "free"];
       if (existingCount >= limit) {

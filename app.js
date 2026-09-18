@@ -563,6 +563,8 @@ function renderCarousel(photos, startIndex = 0) {
 function updateCarouselUI() {
   carouselEl.scrollLeft = 0; // 트랙이 컨테이너보다 넓어서, 버튼 포커스 시 브라우저가 자동 스크롤시키는 것을 막음
   const containerWidth = carouselEl.clientWidth;
+  // 스크롤바 등장/소멸으로 폭이 바뀌면 슬라이드 폭도 같이 갱신 (안 하면 다음 슬라이드가 살짝 비어져 보임)
+  $("carousel-track").querySelectorAll(".carousel-slide").forEach((s) => { s.style.width = `${containerWidth}px`; });
   $("carousel-track").style.transform = `translateX(${-carouselIndex * containerWidth}px)`;
 
   const dotsWrap = $("carousel-dots");
