@@ -57,9 +57,13 @@ body.read-only .photo-remove,
 body.read-only .photo-cover-btn,
 body.read-only #welcome-banner,
 body.read-only #show-link-btn,
+body.read-only #show-settings-btn,
 body.read-only #create-view-link-btn,
-body.read-only #view-link-row { display: none !important; }
+body.read-only #view-link-row,
+body.read-only #upload-status,
+body.read-only #save-hint { display: none !important; }
 body.read-only .star-row button { cursor: default; }
+body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 
 .screen { padding: 20px 16px 40px; }
 .screen[hidden] { display: none; }
@@ -92,21 +96,26 @@ body.read-only .star-row button { cursor: default; }
 }
 .welcome-banner[hidden] { display: none; }
 .welcome-banner p { font-size: 12.5px; line-height: 1.5; margin: 0 0 10px; color: #6b4a4f; }
-.link-row { display: flex; gap: 6px; margin-bottom: 8px; }
-.link-row[hidden] { display: none; }
-#my-link-input {
+
+.link-card {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+  padding: 6px 6px 6px 14px; margin-bottom: 8px;
+}
+.link-card[hidden] { display: none; }
+.link-card-text {
   flex: 1; min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 12px;
-  background: #fff;
-  color: var(--text);
+  font-size: 12px; font-family: "SF Mono", "Consolas", monospace;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: text; user-select: all;
 }
-#copy-link-btn {
+.link-copy-btn {
   border: none; border-radius: 8px; background: var(--accent); color: #fff;
-  padding: 0 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 8px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+  flex-shrink: 0; transition: background 0.15s;
 }
+.link-copy-btn:hover { background: var(--accent-dark); }
+.link-copy-btn.copied { background: #4caf7d; }
 .banner-actions { display: flex; justify-content: space-between; align-items: center; }
 #dismiss-banner-btn { font-size: 11px; color: #a98488; }
 .text-btn.danger { font-size: 11px; color: #c94545; }
@@ -181,19 +190,25 @@ body.read-only .star-row button { cursor: default; }
   width: 100%; max-width: 480px;
   max-height: min(88vh, 620px);
   border-radius: 20px 20px 0 0;
-  padding: 20px 16px 28px;
-  overflow-y: auto;
+  overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.22s ease-out;
+}
+.modal-card-inner {
+  overflow-y: auto;
+  padding: 20px 16px 28px;
 }
 @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal-close {
-  position: absolute; top: 12px; right: 14px;
+  position: absolute; top: 12px; right: 14px; z-index: 5;
   border: none; background: none; font-size: 22px; color: var(--text-muted); cursor: pointer;
 }
 #modal-date-label { margin: 0 30px 8px 0; font-size: 16px; }
 
 .star-row { display: flex; gap: 4px; margin-bottom: 14px; }
+.star-row[hidden] { display: none; }
 .star-row button {
   border: none; background: none; font-size: 24px; line-height: 1;
   cursor: pointer; padding: 0; color: var(--border);
@@ -279,6 +294,12 @@ body.read-only .star-row button { cursor: default; }
   font-family: inherit;
 }
 .diary-textarea:focus { outline: none; }
+.diary-view-text {
+  font-size: 14px; line-height: 1.6; color: var(--text);
+  white-space: pre-wrap; margin: 0 0 16px;
+}
+.diary-view-text[hidden] { display: none; }
+.diary-textarea-wrap[hidden] { display: none; }
 .save-btn {
   width: 100%;
   padding: 12px;
@@ -307,22 +328,13 @@ body.read-only .star-row button { cursor: default; }
 
 .swatch-row { display: flex; align-items: center; gap: 10px; }
 .swatch {
-  width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+  width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border);
   cursor: pointer; padding: 0;
 }
 .swatch.active { border-color: var(--text); }
 #accent-picker, #bg-picker {
   width: 28px; height: 28px; border: none; border-radius: 50%; padding: 0;
   background: none; cursor: pointer;
-}
-
-.transparent-swatch {
-  background-image:
-    linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
-  background-size: 10px 10px;
-  background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
-  background-color: #fff;
 }
 
 .settings-hint { font-size: 11px; color: var(--text-muted); margin: -4px 0 8px; line-height: 1.4; }

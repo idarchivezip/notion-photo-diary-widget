@@ -21,9 +21,9 @@
 
   <div id="welcome-banner" class="welcome-banner" hidden>
     <p id="welcome-text">✨ 노션 연결이 완료됐어요! 아래 링크를 복사해서 Notion에 임베드하세요. <b>이 링크를 잃어버리면 다시 접근할 수 없으니</b> 꼭 저장해두세요.</p>
-    <div class="link-row">
-      <input type="text" id="my-link-input" readonly>
-      <button id="copy-link-btn">복사</button>
+    <div class="link-card">
+      <span class="link-card-text" id="my-link-input">-</span>
+      <button id="copy-link-btn" class="link-copy-btn">복사</button>
     </div>
     <div class="banner-actions">
       <button id="dismiss-banner-btn" class="text-btn">닫기</button>
@@ -61,56 +61,66 @@
   <div id="settings-modal" class="modal-overlay" hidden>
     <div class="modal-card">
       <button id="settings-close-btn" class="modal-close" aria-label="닫기">×</button>
-      <h3>설정</h3>
+      <div class="modal-card-inner">
+        <h3>설정</h3>
 
-      <div class="settings-group">
-        <p class="settings-label">테마</p>
-        <div class="segmented" id="theme-segmented">
-          <button type="button" data-value="light">라이트</button>
-          <button type="button" data-value="dark">다크</button>
-          <button type="button" data-value="system">시스템</button>
+        <div class="settings-group">
+          <p class="settings-label">테마</p>
+          <div class="segmented" id="theme-segmented">
+            <button type="button" data-value="light">라이트</button>
+            <button type="button" data-value="dark">다크</button>
+            <button type="button" data-value="system">시스템</button>
+          </div>
         </div>
-      </div>
 
-      <div class="settings-group">
-        <p class="settings-label">강조 색상</p>
-        <div class="swatch-row" id="accent-swatches">
-          <button type="button" class="swatch" data-color="#e78895" style="background:#e78895"></button>
-          <button type="button" class="swatch" data-color="#e0a458" style="background:#e0a458"></button>
-          <button type="button" class="swatch" data-color="#7fb069" style="background:#7fb069"></button>
-          <button type="button" class="swatch" data-color="#5b8def" style="background:#5b8def"></button>
-          <button type="button" class="swatch" data-color="#9b7ede" style="background:#9b7ede"></button>
-          <input type="color" id="accent-picker" value="#e78895" aria-label="직접 선택">
+        <div class="settings-group">
+          <p class="settings-label">강조 색상</p>
+          <div class="swatch-row" id="accent-swatches">
+            <button type="button" class="swatch" data-color="#e78895" style="background:#e78895"></button>
+            <button type="button" class="swatch" data-color="#e0a458" style="background:#e0a458"></button>
+            <button type="button" class="swatch" data-color="#7fb069" style="background:#7fb069"></button>
+            <button type="button" class="swatch" data-color="#5b8def" style="background:#5b8def"></button>
+            <button type="button" class="swatch" data-color="#9b7ede" style="background:#9b7ede"></button>
+            <input type="color" id="accent-picker" value="#e78895" aria-label="직접 선택">
+          </div>
         </div>
-      </div>
 
-      <div class="settings-group">
-        <p class="settings-label">배경 색상</p>
-        <div class="swatch-row" id="bg-swatches">
-          <button type="button" class="swatch transparent-swatch" data-color="transparent" title="투명"></button>
-          <button type="button" class="swatch" data-color="#faf8f5" style="background:#faf8f5"></button>
-          <button type="button" class="swatch" data-color="#1b1a19" style="background:#1b1a19"></button>
-          <button type="button" class="swatch" data-color="#eef4f8" style="background:#eef4f8"></button>
-          <button type="button" class="swatch" data-color="#f6efe3" style="background:#f6efe3"></button>
-          <input type="color" id="bg-picker" value="#faf8f5" aria-label="직접 선택">
+        <div class="settings-group">
+          <p class="settings-label">배경 색상</p>
+          <div class="swatch-row" id="bg-swatches">
+            <button type="button" class="swatch" data-color="#ffffff" style="background:#ffffff"></button>
+            <button type="button" class="swatch" data-color="#faf8f5" style="background:#faf8f5"></button>
+            <button type="button" class="swatch" data-color="#1b1a19" style="background:#1b1a19"></button>
+            <button type="button" class="swatch" data-color="#eef4f8" style="background:#eef4f8"></button>
+            <button type="button" class="swatch" data-color="#f6efe3" style="background:#f6efe3"></button>
+            <input type="color" id="bg-picker" value="#faf8f5" aria-label="직접 선택">
+          </div>
         </div>
-      </div>
 
-      <div class="settings-group">
-        <p class="settings-label">날짜 칸 모서리</p>
-        <div class="segmented" id="corner-segmented">
-          <button type="button" data-value="round">둥근 모서리</button>
-          <button type="button" data-value="square">각진 모서리</button>
+        <div class="settings-group">
+          <p class="settings-label">날짜 칸 모서리</p>
+          <div class="segmented" id="corner-segmented">
+            <button type="button" data-value="round">둥근 모서리</button>
+            <button type="button" data-value="square">각진 모서리</button>
+          </div>
         </div>
-      </div>
 
-      <div class="settings-group">
-        <p class="settings-label">공유 (보기 전용 링크)</p>
-        <p class="settings-hint">업로드/수정 버튼이 없는 링크를 만들어서, 다른 사람에게 공개해도 안전해요.</p>
-        <button id="create-view-link-btn" class="upload-label" type="button">보기 전용 링크 만들기</button>
-        <div class="link-row" id="view-link-row" hidden>
-          <input type="text" id="view-link-input" readonly>
-          <button id="copy-view-link-btn">복사</button>
+        <div class="settings-group">
+          <p class="settings-label">별점 표시</p>
+          <div class="segmented" id="rating-visible-segmented">
+            <button type="button" data-value="on">표시</button>
+            <button type="button" data-value="off">숨기기</button>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <p class="settings-label">공유 (보기 전용 링크)</p>
+          <p class="settings-hint">업로드/수정 버튼이 없는 링크를 만들어서, 다른 사람에게 공개해도 안전해요.</p>
+          <button id="create-view-link-btn" class="upload-label" type="button">보기 전용 링크 만들기</button>
+          <div class="link-card" id="view-link-row" hidden>
+            <span class="link-card-text" id="view-link-input">-</span>
+            <button id="copy-view-link-btn" class="link-copy-btn">복사</button>
+          </div>
         </div>
       </div>
     </div>
@@ -120,38 +130,43 @@
   <div id="day-modal" class="modal-overlay" hidden>
     <div class="modal-card">
       <button id="modal-close-btn" class="modal-close" aria-label="닫기">×</button>
-      <h3 id="modal-date-label"></h3>
+      <div class="modal-card-inner">
+        <h3 id="modal-date-label"></h3>
 
-      <div class="star-row" id="star-rating"></div>
+        <div id="photo-grid" class="photo-grid"></div>
 
-      <div id="photo-grid" class="photo-grid"></div>
+        <div class="star-row" id="star-rating"></div>
 
-      <label class="upload-label" id="upload-label">
-        📷 사진 추가
-        <input type="file" id="photo-input" accept="image/*" multiple hidden>
-      </label>
-      <div id="upload-status" class="upload-status"></div>
+        <label class="upload-label" id="upload-label">
+          📷 사진 추가
+          <input type="file" id="photo-input" accept="image/*" multiple hidden>
+        </label>
+        <div id="upload-status" class="upload-status"></div>
 
-      <div class="diary-textarea-wrap">
-        <textarea id="diary-text" class="diary-textarea" placeholder="오늘 하루는 어땠나요?"></textarea>
+        <div class="diary-textarea-wrap">
+          <textarea id="diary-text" class="diary-textarea" placeholder="오늘 하루는 어땠나요?"></textarea>
+        </div>
+        <p class="diary-view-text" id="diary-view-text" hidden></p>
+        <button id="save-diary-btn" class="save-btn">일기 저장</button>
+        <p class="save-hint" id="save-hint" hidden>저장되었습니다 ✓</p>
       </div>
-      <button id="save-diary-btn" class="save-btn">일기 저장</button>
-      <p class="save-hint" id="save-hint" hidden>저장되었습니다 ✓</p>
     </div>
   </div>
 
   <!-- 사진 자르기 모달 -->
   <div id="crop-modal" class="modal-overlay" hidden>
     <div class="modal-card crop-card">
-      <h3>사진 자르기</h3>
-      <p class="settings-hint">정사각형 영역을 드래그해서 위치를 옮길 수 있어요.</p>
-      <div id="crop-stage" class="crop-stage">
-        <img id="crop-image" alt="">
-        <div id="crop-box" class="crop-box"></div>
-      </div>
-      <div class="crop-actions">
-        <button id="crop-skip-btn" class="text-btn">원본 그대로 업로드</button>
-        <button id="crop-apply-btn" class="save-btn">자르기 적용</button>
+      <div class="modal-card-inner">
+        <h3>사진 자르기</h3>
+        <p class="settings-hint">정사각형 영역을 드래그해서 위치를 옮길 수 있어요.</p>
+        <div id="crop-stage" class="crop-stage">
+          <img id="crop-image" alt="">
+          <div id="crop-box" class="crop-box"></div>
+        </div>
+        <div class="crop-actions">
+          <button id="crop-skip-btn" class="text-btn">원본 그대로 업로드</button>
+          <button id="crop-apply-btn" class="save-btn">자르기 적용</button>
+        </div>
       </div>
     </div>
   </div>

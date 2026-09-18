@@ -2,7 +2,7 @@
 /* localStorage에만 저장되는 기기별 화면 설정이라 노션/서버 데이터와는 분리되어 있습니다. */
 
 const SETTINGS_KEY = "pd_settings";
-const DEFAULT_SETTINGS = { theme: "system", accent: "#e78895", bg: "auto", corner: "round" };
+const DEFAULT_SETTINGS = { theme: "system", accent: "#e78895", bg: "auto", corner: "round", showRating: true };
 
 function loadSettings() {
   try {
@@ -56,6 +56,46 @@ const monthLabel = $("month-label");
 function pad2(n) { return String(n).padStart(2, "0"); }
 function dateStr(y, m, d) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Notion 임베드 iframe 등에서 클립보드 API가 막혀 있을 때의 대체 경로.
+    try {
+      const temp = document.createElement("textarea");
+      temp.value = text;
+      temp.style.position = "fixed";
+      temp.style.opacity = "0";
+      document.body.appendChild(temp);
+      temp.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(temp);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function selectText(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function flashCopyButton(btn, ok, textEl) {
+  btn.textContent = ok ? "복사됨 ✓" : "직접 선택해서 복사";
+  btn.classList.toggle("copied", ok);
+  if (!ok && textEl) selectText(textEl);
+  setTimeout(() => {
+    btn.textContent = "복사";
+    btn.classList.remove("copied");
+  }, ok ? 1500 : 2500);
+}
+
 /* ---------------- Workspace link ---------------- */
 
 function myLinkUrl() {
@@ -67,16 +107,16 @@ function myLinkUrl() {
 
 function showWelcomeBanner(message) {
   if (message) $("welcome-text").textContent = message;
-  $("my-link-input").value = myLinkUrl();
+  $("my-link-input").textContent = myLinkUrl();
   $("welcome-banner").hidden = false;
 }
 
 $("show-link-btn").addEventListener("click", () => showWelcomeBanner());
 $("dismiss-banner-btn").addEventListener("click", () => { $("welcome-banner").hidden = true; });
+$("my-link-input").addEventListener("click", () => selectText($("my-link-input")));
 $("copy-link-btn").addEventListener("click", async () => {
-  await navigator.clipboard.writeText($("my-link-input").value);
-  $("copy-link-btn").textContent = "복사됨 ✓";
-  setTimeout(() => { $("copy-link-btn").textContent = "복사"; }, 1500);
+  const ok = await copyText($("my-link-input").textContent);
+  flashCopyButton($("copy-link-btn"), ok, $("my-link-input"));
 });
 
 async function regenerateLink() {
@@ -121,13 +161,13 @@ $("create-view-link-btn").addEventListener("click", async () => {
   const url = new URL(location.href);
   url.searchParams.set("w", token);
   url.searchParams.delete("connected");
-  $("view-link-input").value = url.toString();
+  $("view-link-input").textContent = url.toString();
   $("view-link-row").hidden = false;
 });
+$("view-link-input").addEventListener("click", () => selectText($("view-link-input")));
 $("copy-view-link-btn").addEventListener("click", async () => {
-  await navigator.clipboard.writeText($("view-link-input").value);
-  $("copy-view-link-btn").textContent = "복사됨 ✓";
-  setTimeout(() => { $("copy-view-link-btn").textContent = "복사"; }, 1500);
+  const ok = await copyText($("view-link-input").textContent);
+  flashCopyButton($("copy-view-link-btn"), ok, $("view-link-input"));
 });
 
 /* ---------------- Settings UI ---------------- */
@@ -146,6 +186,9 @@ function syncSettingsUI() {
   );
   document.querySelectorAll("#bg-swatches .swatch").forEach(
     (b) => b.classList.toggle("active", b.dataset.color.toLowerCase() === settings.bg.toLowerCase())
+  );
+  document.querySelectorAll("#rating-visible-segmented button").forEach(
+    (b) => b.classList.toggle("active", b.dataset.value === (settings.showRating ? "on" : "off"))
   );
   $("accent-picker").value = settings.accent;
   if (settings.bg !== "auto" && settings.bg !== "transparent") $("bg-picker").value = settings.bg;
@@ -183,6 +226,15 @@ $("bg-swatches").addEventListener("click", (e) => {
   if (btn) updateSettings({ bg: btn.dataset.color });
 });
 $("bg-picker").addEventListener("input", (e) => updateSettings({ bg: e.target.value }));
+$("rating-visible-segmented").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-value]");
+  if (btn) {
+    updateSettings({ showRating: btn.dataset.value === "on" });
+    if (selectedDateStr && !dayModal.hidden) {
+      renderStarRating((monthEntries[selectedDateStr]?.rating) || 0);
+    }
+  }
+});
 
 /* ---------------- Init ---------------- */
 
@@ -319,10 +371,12 @@ function renderCalendar(daysInMonth) {
     cell.className = "day-cell";
     if (ds === todayStr) cell.classList.add("today");
 
+    const hasEntry = !!(entry?.text || entry?.rating);
     if (entry?.photos?.length) {
       cell.classList.add("has-photo");
       cell.style.setProperty("--thumb-url", `url("${entry.photos[0].url}")`);
     }
+    if (hasEntry) cell.classList.add("has-entry");
 
     const num = document.createElement("span");
     num.className = "day-num";
@@ -335,8 +389,11 @@ function renderCalendar(daysInMonth) {
       cell.appendChild(dot);
     }
 
-    cell.addEventListener("click", () => openDayModal(ds));
-    if (entry?.text || entry?.rating) {
+    const hasContent = hasEntry || entry?.photos?.length;
+    if (!isReadOnly || hasContent) {
+      cell.addEventListener("click", () => openDayModal(ds));
+    }
+    if (hasContent) {
       cell.addEventListener("mouseenter", (e) => showDayTooltip(e, entry));
       cell.addEventListener("mousemove", positionDayTooltip);
       cell.addEventListener("mouseleave", hideDayTooltip);
@@ -349,7 +406,7 @@ function renderCalendar(daysInMonth) {
 
 function showDayTooltip(e, entry) {
   const tip = $("day-tooltip");
-  tip.querySelector(".day-tooltip-stars").textContent = entry.rating
+  tip.querySelector(".day-tooltip-stars").textContent = (settings.showRating && entry.rating)
     ? "★".repeat(entry.rating) + "☆".repeat(5 - entry.rating)
     : "";
   tip.querySelector(".day-tooltip-text").textContent = entry.text || "";
@@ -375,13 +432,23 @@ function openDayModal(ds) {
   const entry = monthEntries[ds] || { text: "", photos: [], rating: 0 };
   const [y, m, d] = ds.split("-").map(Number);
   $("modal-date-label").textContent = `${y}년 ${m}월 ${d}일`;
-  $("diary-text").value = entry.text || "";
-  $("diary-text").readOnly = isReadOnly;
   renderStarRating(entry.rating || 0);
+  renderPhotoGrid(entry.photos || []);
+
+  if (isReadOnly) {
+    document.querySelector(".diary-textarea-wrap").hidden = true;
+    const viewText = $("diary-view-text");
+    viewText.textContent = entry.text || "";
+    viewText.hidden = false;
+  } else {
+    document.querySelector(".diary-textarea-wrap").hidden = false;
+    $("diary-view-text").hidden = true;
+    $("diary-text").value = entry.text || "";
+  }
+
   const used = (entry.photos || []).length;
   $("upload-status").textContent = `${used} / ${currentLimit}장 사용 중 (${currentPlan === "free" ? "무료" : "프로"} 플랜)`;
   $("save-hint").hidden = true;
-  renderPhotoGrid(entry.photos || []);
   dayModal.hidden = false;
 }
 
@@ -393,6 +460,8 @@ dayModal.addEventListener("click", (e) => { if (e.target === dayModal) dayModal.
 function renderStarRating(rating) {
   const container = $("star-rating");
   container.innerHTML = "";
+  container.hidden = !settings.showRating;
+  if (!settings.showRating) return;
   container.classList.toggle("readonly", isReadOnly);
   for (let i = 1; i <= 5; i++) {
     const btn = document.createElement("button");
