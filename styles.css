@@ -192,7 +192,7 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 .modal-card {
   background: var(--card-bg);
   width: 100%; max-width: 480px;
-  max-height: min(88vh, 620px);
+  max-height: min(96vh, 720px);
   border-radius: 20px 20px 0 0;
   overflow: hidden;
   position: relative;
