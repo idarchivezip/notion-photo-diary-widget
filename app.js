@@ -148,21 +148,30 @@ async function regenerateLink() {
 $("regenerate-link-btn").addEventListener("click", regenerateLink);
 
 $("create-view-link-btn").addEventListener("click", async () => {
-  const res = await fetch("/api/create-view-link", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ w: workspaceToken }),
-  });
-  if (!res.ok) {
-    alert("보기 전용 링크 생성에 실패했어요.");
-    return;
+  const btn = $("create-view-link-btn");
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "생성 중...";
+  try {
+    const res = await fetch("/api/create-view-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ w: workspaceToken }),
+    });
+    if (!res.ok) {
+      alert("보기 전용 링크 생성에 실패했어요.");
+      return;
+    }
+    const { token } = await res.json();
+    const url = new URL(location.href);
+    url.searchParams.set("w", token);
+    url.searchParams.delete("connected");
+    $("view-link-input").textContent = url.toString();
+    $("view-link-row").hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
-  const { token } = await res.json();
-  const url = new URL(location.href);
-  url.searchParams.set("w", token);
-  url.searchParams.delete("connected");
-  $("view-link-input").textContent = url.toString();
-  $("view-link-row").hidden = false;
 });
 $("view-link-input").addEventListener("click", () => selectText($("view-link-input")));
 $("copy-view-link-btn").addEventListener("click", async () => {
@@ -228,11 +237,14 @@ $("bg-swatches").addEventListener("click", (e) => {
 $("bg-picker").addEventListener("input", (e) => updateSettings({ bg: e.target.value }));
 $("rating-visible-segmented").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-value]");
-  if (btn) {
-    updateSettings({ showRating: btn.dataset.value === "on" });
-    if (selectedDateStr && !dayModal.hidden) {
-      renderStarRating((monthEntries[selectedDateStr]?.rating) || 0);
-    }
+  if (!btn) return;
+  updateSettings({ showRating: btn.dataset.value === "on" });
+  if (selectedDateStr && !dayModal.hidden) {
+    renderStarRating((monthEntries[selectedDateStr]?.rating) || 0);
+  }
+  if (viewYear !== undefined) {
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    renderCalendar(daysInMonth);
   }
 });
 
@@ -286,59 +298,82 @@ function setNavDisabled(disabled) {
   $("next-month-btn").disabled = disabled;
 }
 
+function monthKey(y, m) { return `${y}-${pad2(m + 1)}`; }
+
+function renderSkeleton(daysInMonth) {
+  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+  calendarGrid.innerHTML = "";
+  for (let i = 0; i < firstWeekday; i++) {
+    const blank = document.createElement("div");
+    blank.className = "day-cell empty";
+    calendarGrid.appendChild(blank);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = document.createElement("div");
+    cell.className = "day-cell skeleton";
+    const num = document.createElement("span");
+    num.className = "day-num";
+    num.textContent = d;
+    cell.appendChild(num);
+    calendarGrid.appendChild(cell);
+  }
+}
+
+async function fetchMonth(y, m) {
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const startStr = dateStr(y, m, 1);
+  const endStr = dateStr(y, m, daysInMonth);
+  const res = await fetch(`/api/entries?w=${workspaceToken}&start=${startStr}&end=${endStr}`);
+  if (!res.ok) throw Object.assign(new Error("fetch_failed"), { status: res.status });
+  return res.json();
+}
+
+function prefetchAdjacentMonths() {
+  [-1, 1].forEach((delta) => {
+    let y = viewYear, m = viewMonth + delta;
+    if (m < 0) { m = 11; y--; }
+    if (m > 11) { m = 0; y++; }
+    const key = monthKey(y, m);
+    if (monthCache[key]) return;
+    fetchMonth(y, m).then((data) => { monthCache[key] = data; }).catch(() => {});
+  });
+}
+
 async function loadMonth() {
-  const key = `${viewYear}-${pad2(viewMonth + 1)}`;
+  const key = monthKey(viewYear, viewMonth);
   monthLabel.textContent = `${viewYear}년 ${viewMonth + 1}월`;
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
   if (monthCache[key]) {
     applyMonthData(monthCache[key]);
+    prefetchAdjacentMonths();
     return;
   }
   if (loadingMonth) return;
 
   loadingMonth = true;
-  calendarGrid.classList.add("loading");
+  renderSkeleton(daysInMonth); // 데이터가 오기 전에 뼈대부터 즉시 그려서 반응성을 높임
   setNavDisabled(true);
 
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const startStr = dateStr(viewYear, viewMonth, 1);
-  const endStr = dateStr(viewYear, viewMonth, daysInMonth);
-
-  let res;
   try {
-    res = await fetch(`/api/entries?w=${workspaceToken}&start=${startStr}&end=${endStr}`);
-  } catch {
-    monthLabel.textContent += " (연결 오류, 새로고침 해주세요)";
+    const data = await fetchMonth(viewYear, viewMonth);
+    monthCache[key] = data;
+    applyMonthData(data);
+    prefetchAdjacentMonths();
+  } catch (err) {
+    if (err.status === 401) {
+      alert("연결이 만료되었거나 잘못된 링크예요. 다시 연결해주세요.");
+      workspaceToken = null;
+      history.replaceState({}, "", location.pathname);
+      connectScreen.hidden = false;
+      mainScreen.hidden = true;
+    } else {
+      monthLabel.textContent += " (불러오기 실패, 새로고침 해주세요)";
+    }
+  } finally {
     loadingMonth = false;
-    calendarGrid.classList.remove("loading");
     setNavDisabled(false);
-    return;
   }
-
-  if (res.status === 401) {
-    alert("연결이 만료되었거나 잘못된 링크예요. 다시 연결해주세요.");
-    workspaceToken = null;
-    history.replaceState({}, "", location.pathname);
-    connectScreen.hidden = false;
-    mainScreen.hidden = true;
-    loadingMonth = false;
-    return;
-  }
-  if (!res.ok) {
-    monthLabel.textContent += " (불러오기 실패, 새로고침 해주세요)";
-    loadingMonth = false;
-    calendarGrid.classList.remove("loading");
-    setNavDisabled(false);
-    return;
-  }
-
-  const data = await res.json();
-  monthCache[key] = data;
-  applyMonthData(data);
-
-  loadingMonth = false;
-  calendarGrid.classList.remove("loading");
-  setNavDisabled(false);
 }
 
 function applyMonthData(data) {
@@ -389,6 +424,13 @@ function renderCalendar(daysInMonth) {
       cell.appendChild(dot);
     }
 
+    if (entry?.rating && settings.showRating) {
+      const badge = document.createElement("span");
+      badge.className = "day-rating-badge";
+      badge.textContent = `★${entry.rating}`;
+      cell.appendChild(badge);
+    }
+
     const hasContent = hasEntry || entry?.photos?.length;
     if (!isReadOnly || hasContent) {
       cell.addEventListener("click", () => openDayModal(ds));
@@ -424,6 +466,52 @@ function positionDayTooltip(e) {
   tip.style.top = `${y}px`;
 }
 function hideDayTooltip() { $("day-tooltip").hidden = true; }
+
+/* ---------------- Photo lightbox (원본 크게 보기 + 스와이프) ---------------- */
+
+let lightboxPhotos = [];
+let lightboxIndex = 0;
+
+function renderLightbox() {
+  $("lightbox-image").src = lightboxPhotos[lightboxIndex].url;
+  $("lightbox-counter").textContent = `${lightboxIndex + 1} / ${lightboxPhotos.length}`;
+  const multi = lightboxPhotos.length > 1;
+  $("lightbox-prev-btn").hidden = !multi;
+  $("lightbox-next-btn").hidden = !multi;
+}
+
+function openLightbox(photos, index) {
+  lightboxPhotos = photos;
+  lightboxIndex = index;
+  renderLightbox();
+  $("lightbox-modal").hidden = false;
+}
+
+function lightboxStep(delta) {
+  lightboxIndex = (lightboxIndex + delta + lightboxPhotos.length) % lightboxPhotos.length;
+  renderLightbox();
+}
+
+$("lightbox-close-btn").addEventListener("click", () => { $("lightbox-modal").hidden = true; });
+$("lightbox-modal").addEventListener("click", (e) => { if (e.target.id === "lightbox-modal") $("lightbox-modal").hidden = true; });
+$("lightbox-prev-btn").addEventListener("click", (e) => { e.stopPropagation(); lightboxStep(-1); });
+$("lightbox-next-btn").addEventListener("click", (e) => { e.stopPropagation(); lightboxStep(1); });
+
+document.addEventListener("keydown", (e) => {
+  if ($("lightbox-modal").hidden) return;
+  if (e.key === "ArrowLeft") lightboxStep(-1);
+  else if (e.key === "ArrowRight") lightboxStep(1);
+  else if (e.key === "Escape") $("lightbox-modal").hidden = true;
+});
+
+let touchStartX = null;
+$("lightbox-modal").addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; });
+$("lightbox-modal").addEventListener("touchend", (e) => {
+  if (touchStartX === null) return;
+  const delta = e.changedTouches[0].clientX - touchStartX;
+  if (Math.abs(delta) > 40) lightboxStep(delta > 0 ? -1 : 1);
+  touchStartX = null;
+});
 
 /* ---------------- Day modal ---------------- */
 
@@ -495,6 +583,7 @@ function renderPhotoGrid(photos) {
     const img = document.createElement("img");
     img.src = p.url;
     img.loading = "lazy";
+    img.addEventListener("click", () => openLightbox(photos, idx));
     item.appendChild(img);
 
     if (idx === 0) {
