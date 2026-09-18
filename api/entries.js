@@ -94,7 +94,8 @@ export default async function handler(req, res) {
       let page = await findPageForDate(conn, date);
       const limit = PLAN_LIMITS[conn.plan || "free"];
 
-      if (addPhoto) {
+      if (addPhoto && !removePhoto) {
+        // removePhoto가 함께 오면 '교체'(자르기 재적용 등)라서 순증가가 없으니 한도 검사를 건너뜀.
         const existingCount = page?.properties?.["사진"]?.files?.length || 0;
         if (existingCount >= limit) {
           res.status(403).json({ error: "plan_limit_reached", limit });

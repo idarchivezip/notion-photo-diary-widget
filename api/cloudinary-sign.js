@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { getConnection, notionHeaders, PLAN_LIMITS } from "../lib/notionConnection.js";
 
 export default async function handler(req, res) {
-  const { w: token, date } = req.query;
+  const { w: token, date, replace } = req.query;
   const conn = await getConnection(token);
   if (!conn) {
     res.status(401).json({ error: "invalid_token" });
@@ -22,11 +22,14 @@ export default async function handler(req, res) {
     const data = await queryRes.json();
     if (!queryRes.ok) throw new Error(JSON.stringify(data));
 
-    const existingCount = data.results?.[0]?.properties?.["사진"]?.files?.length || 0;
-    const limit = PLAN_LIMITS[conn.plan || "free"];
-    if (existingCount >= limit) {
-      res.status(403).json({ error: "plan_limit_reached", limit });
-      return;
+    if (!replace) {
+      // 교체(재자르기) 업로드는 기존 사진 한 장을 대체할 뿐 순증가가 없으니 한도 검사를 건너뜀.
+      const existingCount = data.results?.[0]?.properties?.["사진"]?.files?.length || 0;
+      const limit = PLAN_LIMITS[conn.plan || "free"];
+      if (existingCount >= limit) {
+        res.status(403).json({ error: "plan_limit_reached", limit });
+        return;
+      }
     }
 
     const timestamp = Math.floor(Date.now() / 1000);

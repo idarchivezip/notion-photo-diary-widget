@@ -133,7 +133,18 @@
       <div class="modal-card-inner">
         <h3 id="modal-date-label"></h3>
 
-        <div id="photo-grid" class="photo-grid"></div>
+        <div class="photo-carousel" id="photo-carousel" hidden>
+          <div class="carousel-track" id="carousel-track"></div>
+          <button type="button" class="carousel-nav carousel-prev" id="carousel-prev-btn" aria-label="이전 사진">‹</button>
+          <button type="button" class="carousel-nav carousel-next" id="carousel-next-btn" aria-label="다음 사진">›</button>
+          <div class="carousel-dots" id="carousel-dots"></div>
+        </div>
+
+        <div class="carousel-actions" id="carousel-actions">
+          <button type="button" id="carousel-cover-btn" class="carousel-action-btn">★ 대표로</button>
+          <button type="button" id="carousel-crop-btn" class="carousel-action-btn">✂️ 자르기</button>
+          <button type="button" id="carousel-remove-btn" class="carousel-action-btn danger">삭제</button>
+        </div>
 
         <div class="star-row" id="star-rating"></div>
 
@@ -169,15 +180,6 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <!-- 사진 원본 크게 보기 -->
-  <div id="lightbox-modal" class="lightbox-overlay" hidden>
-    <button id="lightbox-close-btn" class="lightbox-close" aria-label="닫기">×</button>
-    <button id="lightbox-prev-btn" class="lightbox-nav lightbox-prev" aria-label="이전 사진">‹</button>
-    <img id="lightbox-image" class="lightbox-image" alt="">
-    <button id="lightbox-next-btn" class="lightbox-nav lightbox-next" aria-label="다음 사진">›</button>
-    <div class="lightbox-counter" id="lightbox-counter"></div>
   </div>
 
 </div>

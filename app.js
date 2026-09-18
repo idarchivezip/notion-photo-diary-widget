@@ -467,61 +467,16 @@ function positionDayTooltip(e) {
 }
 function hideDayTooltip() { $("day-tooltip").hidden = true; }
 
-/* ---------------- Photo lightbox (원본 크게 보기 + 스와이프) ---------------- */
-
-let lightboxPhotos = [];
-let lightboxIndex = 0;
-
-function renderLightbox() {
-  $("lightbox-image").src = lightboxPhotos[lightboxIndex].url;
-  $("lightbox-counter").textContent = `${lightboxIndex + 1} / ${lightboxPhotos.length}`;
-  const multi = lightboxPhotos.length > 1;
-  $("lightbox-prev-btn").hidden = !multi;
-  $("lightbox-next-btn").hidden = !multi;
-}
-
-function openLightbox(photos, index) {
-  lightboxPhotos = photos;
-  lightboxIndex = index;
-  renderLightbox();
-  $("lightbox-modal").hidden = false;
-}
-
-function lightboxStep(delta) {
-  lightboxIndex = (lightboxIndex + delta + lightboxPhotos.length) % lightboxPhotos.length;
-  renderLightbox();
-}
-
-$("lightbox-close-btn").addEventListener("click", () => { $("lightbox-modal").hidden = true; });
-$("lightbox-modal").addEventListener("click", (e) => { if (e.target.id === "lightbox-modal") $("lightbox-modal").hidden = true; });
-$("lightbox-prev-btn").addEventListener("click", (e) => { e.stopPropagation(); lightboxStep(-1); });
-$("lightbox-next-btn").addEventListener("click", (e) => { e.stopPropagation(); lightboxStep(1); });
-
-document.addEventListener("keydown", (e) => {
-  if ($("lightbox-modal").hidden) return;
-  if (e.key === "ArrowLeft") lightboxStep(-1);
-  else if (e.key === "ArrowRight") lightboxStep(1);
-  else if (e.key === "Escape") $("lightbox-modal").hidden = true;
-});
-
-let touchStartX = null;
-$("lightbox-modal").addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; });
-$("lightbox-modal").addEventListener("touchend", (e) => {
-  if (touchStartX === null) return;
-  const delta = e.changedTouches[0].clientX - touchStartX;
-  if (Math.abs(delta) > 40) lightboxStep(delta > 0 ? -1 : 1);
-  touchStartX = null;
-});
-
 /* ---------------- Day modal ---------------- */
 
 function openDayModal(ds) {
   selectedDateStr = ds;
   const entry = monthEntries[ds] || { text: "", photos: [], rating: 0 };
   const [y, m, d] = ds.split("-").map(Number);
+  dayModal.hidden = false; // 캐러셀 폭을 재기 전에 모달을 먼저 화면에 띄워야 clientWidth가 0으로 안 잡힘
   $("modal-date-label").textContent = `${y}년 ${m}월 ${d}일`;
   renderStarRating(entry.rating || 0);
-  renderPhotoGrid(entry.photos || []);
+  renderCarousel(entry.photos || []);
 
   if (isReadOnly) {
     document.querySelector(".diary-textarea-wrap").hidden = true;
@@ -537,7 +492,6 @@ function openDayModal(ds) {
   const used = (entry.photos || []).length;
   $("upload-status").textContent = `${used} / ${currentLimit}장 사용 중 (${currentPlan === "free" ? "무료" : "프로"} 플랜)`;
   $("save-hint").hidden = true;
-  dayModal.hidden = false;
 }
 
 $("modal-close-btn").addEventListener("click", () => { dayModal.hidden = true; });
@@ -571,55 +525,99 @@ async function setRating(value) {
   updateCellPreview(selectedDateStr);
 }
 
-/* ---------------- Photo grid (+ cover photo) ---------------- */
+/* ---------------- Photo carousel (인스타그램 스타일: 별점/일기는 그대로 보이고 사진만 스와이프) ---------------- */
 
-function renderPhotoGrid(photos) {
-  const grid = $("photo-grid");
-  grid.innerHTML = "";
-  photos.forEach((p, idx) => {
-    const item = document.createElement("div");
-    item.className = "photo-item" + (idx === 0 ? " is-cover" : "");
+let carouselPhotos = [];
+let carouselIndex = 0;
 
+const carouselEl = $("photo-carousel");
+
+function renderCarousel(photos, startIndex = 0) {
+  carouselPhotos = photos;
+  carouselIndex = Math.min(Math.max(0, startIndex), Math.max(0, photos.length - 1));
+
+  $("photo-carousel").hidden = photos.length === 0;
+  $("carousel-actions").hidden = isReadOnly || photos.length === 0;
+
+  // 컨테이너가 방금 hidden 상태에서 풀렸을 수 있어, 실제 렌더된 폭을 강제로 읽어온 뒤
+  // 퍼센트 대신 픽셀 값으로 슬라이드를 배치한다 (aspect-ratio + display 전환 시
+  // flex-basis:%가 낡은 값으로 굳어버리는 렌더링 버그를 피하기 위함).
+  const containerWidth = carouselEl.clientWidth;
+
+  const track = $("carousel-track");
+  track.innerHTML = "";
+  photos.forEach((p) => {
+    const slide = document.createElement("div");
+    slide.className = "carousel-slide";
+    slide.style.width = `${containerWidth}px`;
     const img = document.createElement("img");
     img.src = p.url;
     img.loading = "lazy";
-    img.addEventListener("click", () => openLightbox(photos, idx));
-    item.appendChild(img);
-
-    if (idx === 0) {
-      const badge = document.createElement("span");
-      badge.className = "cover-badge";
-      badge.textContent = "대표";
-      item.appendChild(badge);
-    } else if (!isReadOnly) {
-      const coverBtn = document.createElement("button");
-      coverBtn.className = "photo-cover-btn";
-      coverBtn.title = "대표 사진으로 설정";
-      coverBtn.textContent = "★";
-      coverBtn.addEventListener("click", () => setCoverPhoto(p));
-      item.appendChild(coverBtn);
-    }
-
-    if (!isReadOnly) {
-      const removeBtn = document.createElement("button");
-      removeBtn.className = "photo-remove";
-      removeBtn.textContent = "×";
-      removeBtn.addEventListener("click", () => removePhoto(p));
-      item.appendChild(removeBtn);
-    }
-
-    grid.appendChild(item);
+    slide.appendChild(img);
+    track.appendChild(slide);
   });
+
+  updateCarouselUI();
 }
 
-async function setCoverPhoto(photo) {
-  const entry = monthEntries[selectedDateStr];
-  const reordered = [photo, ...entry.photos.filter((p) => p.url !== photo.url)];
-  await patchEntry({ reorderPhotos: reordered });
-  entry.photos = reordered;
-  renderPhotoGrid(reordered);
-  updateCellPreview(selectedDateStr);
+function updateCarouselUI() {
+  carouselEl.scrollLeft = 0; // 트랙이 컨테이너보다 넓어서, 버튼 포커스 시 브라우저가 자동 스크롤시키는 것을 막음
+  const containerWidth = carouselEl.clientWidth;
+  $("carousel-track").style.transform = `translateX(${-carouselIndex * containerWidth}px)`;
+
+  const dotsWrap = $("carousel-dots");
+  dotsWrap.innerHTML = "";
+  if (carouselPhotos.length > 1) {
+    carouselPhotos.forEach((_, i) => {
+      const dot = document.createElement("span");
+      if (i === carouselIndex) dot.className = "active";
+      dotsWrap.appendChild(dot);
+    });
+  }
+
+  $("carousel-prev-btn").hidden = carouselIndex === 0;
+  $("carousel-next-btn").hidden = carouselIndex >= carouselPhotos.length - 1;
+  $("carousel-cover-btn").hidden = carouselIndex === 0;
 }
+
+function carouselStep(delta) {
+  if (!carouselPhotos.length) return;
+  carouselIndex = Math.min(Math.max(0, carouselIndex + delta), carouselPhotos.length - 1);
+  updateCarouselUI();
+}
+
+$("carousel-prev-btn").addEventListener("click", () => carouselStep(-1));
+$("carousel-next-btn").addEventListener("click", () => carouselStep(1));
+
+// 드래그로 스와이프 (마우스+터치 공용, pointer 이벤트)
+let dragging = false, dragStartX = 0, dragDeltaX = 0;
+
+carouselEl.addEventListener("pointerdown", (e) => {
+  if (e.target.closest("button") || carouselPhotos.length < 2) return;
+  dragging = true;
+  dragStartX = e.clientX;
+  dragDeltaX = 0;
+  $("carousel-track").classList.add("dragging");
+  carouselEl.setPointerCapture(e.pointerId);
+});
+carouselEl.addEventListener("pointermove", (e) => {
+  if (!dragging) return;
+  dragDeltaX = e.clientX - dragStartX;
+  const containerWidth = carouselEl.clientWidth;
+  $("carousel-track").style.transform = `translateX(${-carouselIndex * containerWidth + dragDeltaX}px)`;
+});
+function endCarouselDrag() {
+  if (!dragging) return;
+  dragging = false;
+  $("carousel-track").classList.remove("dragging");
+  const threshold = carouselEl.clientWidth * 0.18;
+  if (dragDeltaX < -threshold) carouselStep(1);
+  else if (dragDeltaX > threshold) carouselStep(-1);
+  else updateCarouselUI();
+}
+carouselEl.addEventListener("pointerup", endCarouselDrag);
+carouselEl.addEventListener("pointercancel", endCarouselDrag);
+carouselEl.addEventListener("pointerleave", endCarouselDrag);
 
 async function patchEntry(body) {
   const res = await fetch(`/api/entries?w=${workspaceToken}`, {
@@ -631,14 +629,61 @@ async function patchEntry(body) {
   return res.json();
 }
 
-async function removePhoto(photo) {
-  await patchEntry({ removePhoto: { url: photo.url } });
-
+async function setCoverPhoto(photo) {
   const entry = monthEntries[selectedDateStr];
-  entry.photos = (entry.photos || []).filter((p) => p.url !== photo.url);
-  renderPhotoGrid(entry.photos);
+  const reordered = [photo, ...entry.photos.filter((p) => p.url !== photo.url)];
+  await patchEntry({ reorderPhotos: reordered });
+  entry.photos = reordered;
+  renderCarousel(reordered, 0);
   updateCellPreview(selectedDateStr);
 }
+
+async function removePhoto(photo) {
+  await patchEntry({ removePhoto: { url: photo.url } });
+  const entry = monthEntries[selectedDateStr];
+  entry.photos = (entry.photos || []).filter((p) => p.url !== photo.url);
+  renderCarousel(entry.photos, carouselIndex);
+  updateCellPreview(selectedDateStr);
+}
+
+$("carousel-cover-btn").addEventListener("click", () => {
+  if (carouselIndex === 0 || !carouselPhotos.length) return;
+  setCoverPhoto(carouselPhotos[carouselIndex]);
+});
+$("carousel-remove-btn").addEventListener("click", () => {
+  if (!carouselPhotos.length) return;
+  if (confirm("이 사진을 삭제할까요?")) removePhoto(carouselPhotos[carouselIndex]);
+});
+$("carousel-crop-btn").addEventListener("click", async () => {
+  if (!carouselPhotos.length) return;
+  const photo = carouselPhotos[carouselIndex];
+  const keepIndex = carouselIndex;
+  const btn = $("carousel-crop-btn");
+  const original = btn.textContent;
+  btn.disabled = true;
+  try {
+    btn.textContent = "불러오는 중...";
+    const blob = await fetch(photo.url).then((r) => r.blob());
+    const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
+    const cropped = await openCropModal(file);
+
+    btn.textContent = "업로드 중...";
+    const sign = await getCloudinarySign(selectedDateStr, true);
+    const result = await uploadToCloudinary(cropped, sign);
+    const newPhoto = { url: result.secure_url, name: photo.name };
+    await patchEntry({ addPhoto: newPhoto, removePhoto: { url: photo.url } });
+
+    const entry = monthEntries[selectedDateStr];
+    entry.photos = entry.photos.map((p) => (p.url === photo.url ? newPhoto : p));
+    renderCarousel(entry.photos, keepIndex);
+    updateCellPreview(selectedDateStr);
+  } catch {
+    alert("사진을 다시 자르는 데 실패했어요. 잠시 후 다시 시도해주세요.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
 
 /* ---------------- Photo crop ---------------- */
 
@@ -734,8 +779,8 @@ function openCropModal(file) {
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB, Cloudinary 프리셋 제한과 맞춰주세요.
 
-async function getCloudinarySign(date) {
-  const res = await fetch(`/api/cloudinary-sign?w=${workspaceToken}&date=${date}`);
+async function getCloudinarySign(date, replace = false) {
+  const res = await fetch(`/api/cloudinary-sign?w=${workspaceToken}&date=${date}${replace ? "&replace=1" : ""}`);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error === "plan_limit_reached" ? `LIMIT:${data.limit}` : "sign_failed");
   return data;
@@ -786,7 +831,7 @@ $("photo-input").addEventListener("change", async (e) => {
       await patchEntry({ addPhoto: photoObj });
       monthEntries[selectedDateStr].photos.push(photoObj);
       done++;
-      renderPhotoGrid(monthEntries[selectedDateStr].photos);
+      renderCarousel(monthEntries[selectedDateStr].photos, monthEntries[selectedDateStr].photos.length - 1);
       updateCellPreview(selectedDateStr);
       $("upload-status").textContent = `${monthEntries[selectedDateStr].photos.length} / ${currentLimit}장 사용 중 (${currentPlan === "free" ? "무료" : "프로"} 플랜)`;
     } catch (err) {
