@@ -254,7 +254,7 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 .carousel-track.dragging { transition: none; }
 .carousel-slide { flex: none; height: 100%; }
 .carousel-slide img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  width: 100%; height: 100%; object-fit: contain; display: block;
   user-select: none; -webkit-user-drag: none;
 }
 .carousel-nav {
