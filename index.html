@@ -20,7 +20,7 @@
   </section>
 
   <div id="welcome-banner" class="welcome-banner" hidden>
-    <p id="welcome-text">✨ 노션 연결이 완료됐어요! 아래 링크를 복사해서 Notion에 임베드하세요. <b>이 링크를 잃어버리면 다시 접근할 수 없으니</b> 꼭 저장해두세요.</p>
+    <p id="welcome-text">✨ 노션 연결이 완료됐어요! 노션에 <b>포토 다이어리</b> 데이터베이스가 만들어졌어요. 거기에 날짜·사진·일기·기분(1~5)을 입력하면 이 위젯에 보여요. 아래 링크는 Notion에 임베드하세요.</p>
     <div class="link-card">
       <span class="link-card-text" id="my-link-input">-</span>
       <button id="copy-link-btn" class="link-copy-btn">복사</button>
@@ -112,16 +112,6 @@
             <button type="button" data-value="off">숨기기</button>
           </div>
         </div>
-
-        <div class="settings-group">
-          <p class="settings-label">공유 (보기 전용 링크)</p>
-          <p class="settings-hint">업로드/수정 버튼이 없는 링크를 만들어서, 다른 사람에게 공개해도 안전해요.</p>
-          <button id="create-view-link-btn" class="upload-label" type="button">보기 전용 링크 만들기</button>
-          <div class="link-card" id="view-link-row" hidden>
-            <span class="link-card-text" id="view-link-input">-</span>
-            <button id="copy-view-link-btn" class="link-copy-btn">복사</button>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -140,47 +130,10 @@
           <div class="carousel-dots" id="carousel-dots"></div>
         </div>
 
-        <div class="carousel-actions" id="carousel-actions">
-          <button type="button" id="carousel-cover-btn" class="carousel-action-btn">★ 대표로</button>
-          <button type="button" id="carousel-crop-btn" class="carousel-action-btn">✂️ 자르기</button>
-          <button type="button" id="carousel-remove-btn" class="carousel-action-btn danger">삭제</button>
-        </div>
-
         <div class="star-row" id="star-rating"></div>
 
-        <label class="upload-label" id="upload-label">
-          📷 사진 추가
-          <input type="file" id="photo-input" accept="image/*" multiple hidden>
-        </label>
-        <div id="upload-status" class="upload-status"></div>
 
-        <div class="diary-textarea-wrap">
-          <textarea id="diary-text" class="diary-textarea" placeholder="오늘 하루는 어땠나요?"></textarea>
-        </div>
-        <p class="diary-view-text" id="diary-view-text" hidden></p>
-        <button id="save-diary-btn" class="save-btn">일기 저장</button>
-        <p class="save-hint" id="save-hint" hidden>저장되었습니다 ✓</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- 사진 자르기 모달 -->
-  <div id="crop-modal" class="modal-overlay" hidden>
-    <div class="modal-card crop-card">
-      <button id="crop-close-btn" class="modal-close" aria-label="취소">×</button>
-      <div class="modal-card-inner">
-        <h3>사진 자르기</h3>
-        <p class="settings-hint">네모를 드래그해서 옮기고, 모서리를 끌어서 원하는 크기·모양으로 자르세요.</p>
-        <div id="crop-stage" class="crop-stage">
-          <img id="crop-image" alt="">
-          <div id="crop-box" class="crop-box">
-            <i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i>
-          </div>
-        </div>
-        <div class="crop-actions">
-          <button id="crop-skip-btn" class="text-btn">원본 그대로 업로드</button>
-          <button id="crop-apply-btn" class="save-btn">자르기 적용</button>
-        </div>
+        <p class="diary-view-text" id="diary-view-text"></p>
       </div>
     </div>
   </div>

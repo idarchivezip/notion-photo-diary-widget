@@ -37,9 +37,6 @@ applySettings(settings); // FOUC 방지를 위해 다른 초기화보다 먼저 
 /* ---------------- State ---------------- */
 
 let workspaceToken = null;
-let currentPlan = "free";
-let currentLimit = 2;
-let isReadOnly = false;
 let viewYear, viewMonth; // viewMonth: 0-11
 let monthEntries = {};   // { "YYYY-MM-DD": { text, rating, photos: [{url, name}] } }
 let monthCache = {};     // "YYYY-MM" -> API response
@@ -146,38 +143,6 @@ async function regenerateLink() {
 }
 
 $("regenerate-link-btn").addEventListener("click", regenerateLink);
-
-$("create-view-link-btn").addEventListener("click", async () => {
-  const btn = $("create-view-link-btn");
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "생성 중...";
-  try {
-    const res = await fetch("/api/create-view-link", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ w: workspaceToken }),
-    });
-    if (!res.ok) {
-      alert("보기 전용 링크 생성에 실패했어요.");
-      return;
-    }
-    const { token } = await res.json();
-    const url = new URL(location.href);
-    url.searchParams.set("w", token);
-    url.searchParams.delete("connected");
-    $("view-link-input").textContent = url.toString();
-    $("view-link-row").hidden = false;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-});
-$("view-link-input").addEventListener("click", () => selectText($("view-link-input")));
-$("copy-view-link-btn").addEventListener("click", async () => {
-  const ok = await copyText($("view-link-input").textContent);
-  flashCopyButton($("copy-view-link-btn"), ok, $("view-link-input"));
-});
 
 /* ---------------- Settings UI ---------------- */
 
@@ -328,14 +293,21 @@ async function fetchMonth(y, m) {
   return res.json();
 }
 
+// 노션 내부 파일 주소는 ~1시간 뒤 만료되므로, 그보다 짧게만 캐시한다.
+const CACHE_TTL_MS = 50 * 60 * 1000;
+function cachedMonth(key) {
+  const c = monthCache[key];
+  return c && Date.now() - c.at < CACHE_TTL_MS ? c.data : null;
+}
+
 function prefetchAdjacentMonths() {
   [-1, 1].forEach((delta) => {
     let y = viewYear, m = viewMonth + delta;
     if (m < 0) { m = 11; y--; }
     if (m > 11) { m = 0; y++; }
     const key = monthKey(y, m);
-    if (monthCache[key]) return;
-    fetchMonth(y, m).then((data) => { monthCache[key] = data; }).catch(() => {});
+    if (cachedMonth(key)) return;
+    fetchMonth(y, m).then((data) => { monthCache[key] = { data, at: Date.now() }; }).catch(() => {});
   });
 }
 
@@ -344,8 +316,9 @@ async function loadMonth() {
   monthLabel.textContent = `${viewYear}년 ${viewMonth + 1}월`;
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
-  if (monthCache[key]) {
-    applyMonthData(monthCache[key]);
+  const cached = cachedMonth(key);
+  if (cached) {
+    applyMonthData(cached);
     prefetchAdjacentMonths();
     return;
   }
@@ -357,7 +330,7 @@ async function loadMonth() {
 
   try {
     const data = await fetchMonth(viewYear, viewMonth);
-    monthCache[key] = data;
+    monthCache[key] = { data, at: Date.now() };
     applyMonthData(data);
     prefetchAdjacentMonths();
   } catch (err) {
@@ -376,15 +349,28 @@ async function loadMonth() {
   }
 }
 
+// 사진이 깨졌거나(주소 만료) 탭을 오래 뒤에 뒀다 돌아왔을 때 현재 달을 새 주소로 다시 받아옴.
+// 진짜로 삭제된 사진 때문에 무한 반복하지 않도록 30초에 한 번만.
+let lastRefreshAt = 0;
+async function refreshCurrentMonth() {
+  if (!workspaceToken || Date.now() - lastRefreshAt < 30000) return;
+  lastRefreshAt = Date.now();
+  try {
+    const data = await fetchMonth(viewYear, viewMonth);
+    monthCache[monthKey(viewYear, viewMonth)] = { data, at: Date.now() };
+    monthEntries = data.entries || {};
+    renderCalendar(new Date(viewYear, viewMonth + 1, 0).getDate());
+    if (!dayModal.hidden) renderCarousel(monthEntries[selectedDateStr]?.photos || [], carouselIndex);
+  } catch { /* 다음 기회에 재시도 */ }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && workspaceToken && !cachedMonth(monthKey(viewYear, viewMonth))) refreshCurrentMonth();
+});
+
 function applyMonthData(data) {
   monthEntries = data.entries || {};
-  currentPlan = data.plan || "free";
-  currentLimit = data.photoLimit || 2;
-  isReadOnly = !!data.readOnly;
-  document.body.classList.toggle("read-only", isReadOnly);
-
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  renderCalendar(daysInMonth);
+  renderCalendar(new Date(viewYear, viewMonth + 1, 0).getDate());
 }
 
 function renderCalendar(daysInMonth) {
@@ -432,10 +418,8 @@ function renderCalendar(daysInMonth) {
     }
 
     const hasContent = hasEntry || entry?.photos?.length;
-    if (!isReadOnly || hasContent) {
-      cell.addEventListener("click", () => openDayModal(ds));
-    }
     if (hasContent) {
+      cell.addEventListener("click", () => openDayModal(ds));
       cell.addEventListener("mouseenter", (e) => showDayTooltip(e, entry));
       cell.addEventListener("mousemove", positionDayTooltip);
       cell.addEventListener("mouseleave", hideDayTooltip);
@@ -478,20 +462,7 @@ function openDayModal(ds) {
   renderStarRating(entry.rating || 0);
   renderCarousel(entry.photos || []);
 
-  if (isReadOnly) {
-    document.querySelector(".diary-textarea-wrap").hidden = true;
-    const viewText = $("diary-view-text");
-    viewText.textContent = entry.text || "";
-    viewText.hidden = false;
-  } else {
-    document.querySelector(".diary-textarea-wrap").hidden = false;
-    $("diary-view-text").hidden = true;
-    $("diary-text").value = entry.text || "";
-  }
-
-  const used = (entry.photos || []).length;
-  $("upload-status").textContent = `${used} / ${currentLimit}장 사용 중 (${currentPlan === "free" ? "무료" : "프로"} 플랜)`;
-  $("save-hint").hidden = true;
+  $("diary-view-text").textContent = entry.text || "";
 }
 
 $("modal-close-btn").addEventListener("click", () => { dayModal.hidden = true; });
@@ -502,27 +473,13 @@ dayModal.addEventListener("click", (e) => { if (e.target === dayModal) dayModal.
 function renderStarRating(rating) {
   const container = $("star-rating");
   container.innerHTML = "";
-  container.hidden = !settings.showRating;
-  if (!settings.showRating) return;
-  container.classList.toggle("readonly", isReadOnly);
+  container.hidden = !settings.showRating || !rating;
   for (let i = 1; i <= 5; i++) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "★";
-    if (i <= rating) btn.classList.add("filled");
-    if (!isReadOnly) btn.addEventListener("click", () => setRating(i));
-    container.appendChild(btn);
+    const star = document.createElement("span");
+    star.textContent = "★";
+    if (i <= rating) star.classList.add("filled");
+    container.appendChild(star);
   }
-}
-
-async function setRating(value) {
-  const entry = monthEntries[selectedDateStr] || { text: "", photos: [], rating: 0 };
-  const newValue = entry.rating === value ? 0 : value; // 같은 별 다시 누르면 취소
-  await patchEntry({ rating: newValue });
-  entry.rating = newValue;
-  monthEntries[selectedDateStr] = entry;
-  renderStarRating(newValue);
-  updateCellPreview(selectedDateStr);
 }
 
 /* ---------------- Photo carousel (인스타그램 스타일: 별점/일기는 그대로 보이고 사진만 스와이프) ---------------- */
@@ -537,7 +494,6 @@ function renderCarousel(photos, startIndex = 0) {
   carouselIndex = Math.min(Math.max(0, startIndex), Math.max(0, photos.length - 1));
 
   $("photo-carousel").hidden = photos.length === 0;
-  $("carousel-actions").hidden = isReadOnly || photos.length === 0;
 
   // 컨테이너가 방금 hidden 상태에서 풀렸을 수 있어, 실제 렌더된 폭을 강제로 읽어온 뒤
   // 퍼센트 대신 픽셀 값으로 슬라이드를 배치한다 (aspect-ratio + display 전환 시
@@ -553,6 +509,7 @@ function renderCarousel(photos, startIndex = 0) {
     const img = document.createElement("img");
     img.src = p.url;
     img.loading = "lazy";
+    img.onerror = refreshCurrentMonth;
     slide.appendChild(img);
     track.appendChild(slide);
   });
@@ -579,7 +536,6 @@ function updateCarouselUI() {
 
   $("carousel-prev-btn").hidden = carouselIndex === 0;
   $("carousel-next-btn").hidden = carouselIndex >= carouselPhotos.length - 1;
-  $("carousel-cover-btn").hidden = carouselIndex === 0;
 }
 
 function carouselStep(delta) {
@@ -620,262 +576,3 @@ function endCarouselDrag() {
 carouselEl.addEventListener("pointerup", endCarouselDrag);
 carouselEl.addEventListener("pointercancel", endCarouselDrag);
 carouselEl.addEventListener("pointerleave", endCarouselDrag);
-
-async function patchEntry(body) {
-  const res = await fetch(`/api/entries?w=${workspaceToken}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date: selectedDateStr, ...body }),
-  });
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "request_failed");
-  return res.json();
-}
-
-async function setCoverPhoto(photo) {
-  const entry = monthEntries[selectedDateStr];
-  const reordered = [photo, ...entry.photos.filter((p) => p.url !== photo.url)];
-  await patchEntry({ reorderPhotos: reordered });
-  entry.photos = reordered;
-  renderCarousel(reordered, 0);
-  updateCellPreview(selectedDateStr);
-}
-
-async function removePhoto(photo) {
-  await patchEntry({ removePhoto: { url: photo.url } });
-  const entry = monthEntries[selectedDateStr];
-  entry.photos = (entry.photos || []).filter((p) => p.url !== photo.url);
-  renderCarousel(entry.photos, carouselIndex);
-  updateCellPreview(selectedDateStr);
-}
-
-$("carousel-cover-btn").addEventListener("click", () => {
-  if (carouselIndex === 0 || !carouselPhotos.length) return;
-  setCoverPhoto(carouselPhotos[carouselIndex]);
-});
-$("carousel-remove-btn").addEventListener("click", () => {
-  if (!carouselPhotos.length) return;
-  if (confirm("이 사진을 삭제할까요?")) removePhoto(carouselPhotos[carouselIndex]);
-});
-$("carousel-crop-btn").addEventListener("click", async () => {
-  if (!carouselPhotos.length) return;
-  const photo = carouselPhotos[carouselIndex];
-  const keepIndex = carouselIndex;
-  const btn = $("carousel-crop-btn");
-  const original = btn.textContent;
-  btn.disabled = true;
-  try {
-    btn.textContent = "불러오는 중...";
-    const blob = await fetch(photo.url).then((r) => r.blob());
-    const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
-    const cropped = await openCropModal(file);
-    if (!cropped) return; // 취소함
-
-    btn.textContent = "업로드 중...";
-    const sign = await getCloudinarySign(selectedDateStr, true);
-    const result = await uploadToCloudinary(cropped, sign);
-    const newPhoto = { url: result.secure_url, name: photo.name };
-
-    const entry = monthEntries[selectedDateStr];
-    const updatedPhotos = entry.photos.map((p) => (p.url === photo.url ? newPhoto : p));
-    // 클라이언트가 이미 최종 사진 목록을 알고 있으니, pageId를 같이 보내서
-    // 서버가 "날짜로 페이지 찾기" 조회를 건너뛸 수 있게 함 (교체 하나만으로도 노션 호출이 여러 번 겹쳐 느려지는 걸 줄임).
-    await patchEntry({ reorderPhotos: updatedPhotos, pageId: entry.id });
-    entry.photos = updatedPhotos;
-    renderCarousel(entry.photos, keepIndex);
-    updateCellPreview(selectedDateStr);
-  } catch {
-    alert("사진을 다시 자르는 데 실패했어요. 잠시 후 다시 시도해주세요.");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = original;
-  }
-});
-
-/* ---------------- Photo crop (네모를 옮기고 모서리로 크기·비율을 자유롭게) ---------------- */
-/* null 반환 = 취소 (아무 것도 업로드하지 않음) */
-
-function openCropModal(file) {
-  return new Promise((resolve) => {
-    const modal = $("crop-modal");
-    const img = $("crop-image");
-    const stage = $("crop-stage");
-    const box = $("crop-box");
-    const closeBtn = $("crop-close-btn");
-    const skipBtn = $("crop-skip-btn");
-    const applyBtn = $("crop-apply-btn");
-    const url = URL.createObjectURL(file);
-    const MIN = 40;
-
-    let scale = 1, dw = 0, dh = 0;
-    let x1 = 0, y1 = 0, x2 = 0, y2 = 0; // 잘라낼 네모 (표시 좌표)
-    let mode = null, sx = 0, sy = 0, o = null;
-
-    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
-    function draw() {
-      box.style.left = `${x1}px`; box.style.top = `${y1}px`;
-      box.style.width = `${x2 - x1}px`; box.style.height = `${y2 - y1}px`;
-    }
-
-    function onPointerDown(e) {
-      mode = e.target.dataset.h || "move";
-      sx = e.clientX; sy = e.clientY; o = { x1, y1, x2, y2 };
-      stage.setPointerCapture(e.pointerId);
-    }
-    function onPointerMove(e) {
-      if (!mode) return;
-      const dx = e.clientX - sx, dy = e.clientY - sy;
-      if (mode === "move") {
-        const w = o.x2 - o.x1, h = o.y2 - o.y1;
-        x1 = clamp(o.x1 + dx, 0, dw - w); y1 = clamp(o.y1 + dy, 0, dh - h);
-        x2 = x1 + w; y2 = y1 + h;
-      } else {
-        if (mode.includes("w")) x1 = clamp(o.x1 + dx, 0, o.x2 - MIN);
-        if (mode.includes("e")) x2 = clamp(o.x2 + dx, o.x1 + MIN, dw);
-        if (mode.includes("n")) y1 = clamp(o.y1 + dy, 0, o.y2 - MIN);
-        if (mode.includes("s")) y2 = clamp(o.y2 + dy, o.y1 + MIN, dh);
-      }
-      draw();
-    }
-    function onPointerUp() { mode = null; }
-
-    function cleanup(result) {
-      URL.revokeObjectURL(url);
-      modal.hidden = true;
-      img.onload = null;
-      stage.removeEventListener("pointerdown", onPointerDown);
-      stage.removeEventListener("pointermove", onPointerMove);
-      stage.removeEventListener("pointerup", onPointerUp);
-      closeBtn.removeEventListener("click", onCancel);
-      skipBtn.removeEventListener("click", onSkip);
-      applyBtn.removeEventListener("click", onApply);
-      resolve(result);
-    }
-
-    function onCancel() { cleanup(null); }
-    function onSkip() { cleanup(file); }
-    function onApply() {
-      const cw = (x2 - x1) / scale, ch = (y2 - y1) / scale;
-      const k = Math.min(1, 1600 / Math.max(cw, ch));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(cw * k);
-      canvas.height = Math.round(ch * k);
-      canvas.getContext("2d").drawImage(img, x1 / scale, y1 / scale, cw, ch, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => cleanup(new File([blob], file.name, { type: "image/jpeg" })),
-        "image/jpeg",
-        0.9
-      );
-    }
-
-    img.onload = () => {
-      const maxW = Math.min(window.innerWidth * 0.82, 340);
-      scale = Math.min(maxW / img.naturalWidth, 340 / img.naturalHeight, 1);
-      dw = img.naturalWidth * scale; dh = img.naturalHeight * scale;
-      img.style.width = `${dw}px`; img.style.height = `${dh}px`;
-      stage.style.width = `${dw}px`; stage.style.height = `${dh}px`;
-      x1 = dw * 0.1; y1 = dh * 0.1; x2 = dw * 0.9; y2 = dh * 0.9;
-      draw();
-    };
-
-    stage.addEventListener("pointerdown", onPointerDown);
-    stage.addEventListener("pointermove", onPointerMove);
-    stage.addEventListener("pointerup", onPointerUp);
-    closeBtn.addEventListener("click", onCancel);
-    skipBtn.addEventListener("click", onSkip);
-    applyBtn.addEventListener("click", onApply);
-
-    img.src = url;
-    modal.hidden = false;
-  });
-}
-
-/* ---------------- Photo upload (signed direct-to-Cloudinary) ---------------- */
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB, Cloudinary 프리셋 제한과 맞춰주세요.
-
-async function getCloudinarySign(date, replace = false) {
-  const res = await fetch(`/api/cloudinary-sign?w=${workspaceToken}&date=${date}${replace ? "&replace=1" : ""}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error === "plan_limit_reached" ? `LIMIT:${data.limit}` : "sign_failed");
-  return data;
-}
-
-async function uploadToCloudinary(file, sign) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("api_key", sign.apiKey);
-  formData.append("timestamp", sign.timestamp);
-  formData.append("signature", sign.signature);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${sign.cloudName}/image/upload`, {
-    method: "POST",
-    body: formData,
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-$("photo-input").addEventListener("change", async (e) => {
-  const files = Array.from(e.target.files || []);
-  e.target.value = "";
-  if (!files.length) return;
-
-  if (!monthEntries[selectedDateStr]) monthEntries[selectedDateStr] = { text: "", photos: [] };
-  if (!monthEntries[selectedDateStr].photos) monthEntries[selectedDateStr].photos = [];
-
-  const statusEl = $("upload-status");
-  let done = 0;
-
-  for (const file of files) {
-    if (!file.type.startsWith("image/")) {
-      statusEl.textContent = `${file.name}은 이미지 파일이 아니에요.`;
-      continue;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      statusEl.textContent = `${file.name}은 10MB를 넘어서 건너뛸게요.`;
-      continue;
-    }
-
-    const toUpload = await openCropModal(file);
-    if (!toUpload) continue; // 취소함
-
-    try {
-      statusEl.textContent = `업로드 중... ${done + 1} / ${files.length}`;
-      const sign = await getCloudinarySign(selectedDateStr);
-      const result = await uploadToCloudinary(toUpload, sign);
-      const photoObj = { url: result.secure_url, name: file.name };
-      await patchEntry({ addPhoto: photoObj });
-      monthEntries[selectedDateStr].photos.push(photoObj);
-      done++;
-      renderCarousel(monthEntries[selectedDateStr].photos, monthEntries[selectedDateStr].photos.length - 1);
-      updateCellPreview(selectedDateStr);
-      $("upload-status").textContent = `${monthEntries[selectedDateStr].photos.length} / ${currentLimit}장 사용 중 (${currentPlan === "free" ? "무료" : "프로"} 플랜)`;
-    } catch (err) {
-      if (String(err.message).startsWith("LIMIT:")) {
-        statusEl.textContent = `${currentPlan === "free" ? "무료" : "프로"} 플랜은 하루 최대 ${currentLimit}장까지 업로드할 수 있어요.`;
-        break;
-      }
-      statusEl.textContent = `업로드 실패: ${file.name}`;
-    }
-  }
-});
-
-function updateCellPreview(ds) {
-  if (ds.slice(0, 4) != viewYear || Number(ds.slice(5, 7)) - 1 != viewMonth) return;
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  renderCalendar(daysInMonth);
-}
-
-/* ---------------- Save diary text ---------------- */
-
-$("save-diary-btn").addEventListener("click", async () => {
-  const text = $("diary-text").value;
-  await patchEntry({ text });
-
-  if (!monthEntries[selectedDateStr]) monthEntries[selectedDateStr] = { text, photos: [] };
-  else monthEntries[selectedDateStr].text = text;
-
-  $("save-hint").hidden = false;
-  updateCellPreview(selectedDateStr);
-  setTimeout(() => { dayModal.hidden = true; }, 500);
-});

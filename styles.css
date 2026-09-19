@@ -51,19 +51,6 @@ html, body {
   .modal-card { max-width: 760px; }
 }
 
-body.read-only #upload-label,
-body.read-only #save-diary-btn,
-body.read-only #carousel-actions,
-body.read-only #welcome-banner,
-body.read-only #show-link-btn,
-body.read-only #show-settings-btn,
-body.read-only #create-view-link-btn,
-body.read-only #view-link-row,
-body.read-only #upload-status,
-body.read-only #save-hint { display: none !important; }
-body.read-only .star-row button { cursor: default; }
-body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
-
 .screen { padding: 20px 16px 40px; }
 .screen[hidden] { display: none; }
 
@@ -214,11 +201,8 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 
 .star-row { display: flex; gap: 4px; margin-bottom: 14px; }
 .star-row[hidden] { display: none; }
-.star-row button {
-  border: none; background: none; font-size: 24px; line-height: 1;
-  cursor: pointer; padding: 0; color: var(--border);
-}
-.star-row button.filled { color: #f5b942; }
+.star-row span { font-size: 24px; line-height: 1; color: var(--border); }
+.star-row span.filled { color: #f5b942; }
 
 .day-tooltip {
   position: fixed; z-index: 60; max-width: 200px;
@@ -275,70 +259,12 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
   background: rgba(255, 255, 255, 0.5);
 }
 .carousel-dots span.active { background: #fff; }
-.carousel-actions {
-  display: flex; gap: 8px; margin-bottom: 12px;
-}
-.carousel-actions[hidden] { display: none; }
-.carousel-action-btn {
-  flex: 1; border: 1px solid var(--border); background: var(--card-bg); color: var(--text);
-  border-radius: 8px; padding: 7px 0; font-size: 12px; cursor: pointer;
-}
-.carousel-action-btn.danger { color: #c94545; }
-.carousel-action-btn:disabled { opacity: 0.6; cursor: default; color: var(--text); }
 
-.upload-label {
-  display: inline-block;
-  padding: 9px 16px;
-  border: 1px dashed var(--accent);
-  border-radius: 10px;
-  background: none;
-  color: var(--accent-dark);
-  font-size: 13px;
-  cursor: pointer;
-  margin-bottom: 8px;
-}
-.upload-label:disabled { opacity: 0.6; cursor: default; }
-.upload-status { font-size: 12px; color: var(--text-muted); min-height: 16px; margin-bottom: 10px; }
 
-.diary-textarea-wrap {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--bg);
-  margin-bottom: 10px;
-}
-.diary-textarea {
-  display: block;
-  width: 100%;
-  min-height: 110px;
-  border: none;
-  padding: 12px;
-  font-size: 14px;
-  resize: vertical;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-}
-.diary-textarea:focus { outline: none; }
 .diary-view-text {
   font-size: 14px; line-height: 1.6; color: var(--text);
   white-space: pre-wrap; margin: 0 0 16px;
 }
-.diary-view-text[hidden] { display: none; }
-.diary-textarea-wrap[hidden] { display: none; }
-.save-btn {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 10px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.save-btn:hover { background: var(--accent-dark); }
-.save-hint { text-align: center; color: var(--accent-dark); font-size: 12px; margin: 8px 0 0; }
 
 /* ---------- Settings ---------- */
 .settings-group { margin-bottom: 20px; }
@@ -365,21 +291,3 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 
 .settings-hint { font-size: 11px; color: var(--text-muted); margin: -4px 0 8px; line-height: 1.4; }
 
-/* ---------- Crop modal ---------- */
-.crop-card { max-width: 380px; text-align: center; }
-.crop-stage {
-  position: relative; overflow: hidden; display: inline-block;
-  margin: 12px auto; max-width: 100%; touch-action: none;
-}
-#crop-image { display: block; user-select: none; -webkit-user-drag: none; }
-.crop-box {
-  position: absolute; border: 2px solid #fff; cursor: move;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
-}
-.crop-box i { position: absolute; width: 18px; height: 18px; background: #fff; border-radius: 50%; border: 2px solid var(--accent); }
-.crop-box i[data-h="nw"] { left: -10px; top: -10px; cursor: nwse-resize; }
-.crop-box i[data-h="ne"] { right: -10px; top: -10px; cursor: nesw-resize; }
-.crop-box i[data-h="sw"] { left: -10px; bottom: -10px; cursor: nesw-resize; }
-.crop-box i[data-h="se"] { right: -10px; bottom: -10px; cursor: nwse-resize; }
-.crop-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 10px; }
-.crop-actions .save-btn { flex: 1; }
