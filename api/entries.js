@@ -44,7 +44,7 @@ export default async function handler(req, res) {
       const date = page.properties["날짜"]?.date?.start;
       if (date) entries[date.slice(0, 10)] = pageToEntry(page);
     }
-    res.status(200).json({ entries });
+    res.status(200).json({ entries, settings: conn.settings || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

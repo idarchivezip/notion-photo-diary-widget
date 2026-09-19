@@ -146,6 +146,33 @@ $("regenerate-link-btn").addEventListener("click", regenerateLink);
 
 /* ---------------- Settings UI ---------------- */
 
+// 임베드(iframe) 안에서는 저장소가 분리돼 사이트에서 바꾼 테마가 안 먹으므로, 설정은 서버에 저장해 양쪽에 적용한다.
+const embedded = window.self !== window.top;
+document.body.classList.toggle("embedded", embedded);
+
+let saveTimer;
+function saveSettingsToServer() {
+  if (embedded || !workspaceToken) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ w: workspaceToken, settings }),
+    }).catch(() => {});
+  }, 500);
+}
+
+let serverSettingsApplied = false;
+function applyServerSettings(s) {
+  if (serverSettingsApplied || !s) return;
+  serverSettingsApplied = true;
+  settings = { ...settings, ...s };
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  applySettings(settings);
+  syncSettingsUI();
+}
+
 const settingsModal = $("settings-modal");
 
 function syncSettingsUI() {
@@ -171,6 +198,7 @@ function syncSettingsUI() {
 function updateSettings(patch) {
   settings = { ...settings, ...patch };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  saveSettingsToServer();
   applySettings(settings);
   syncSettingsUI();
 }
@@ -369,6 +397,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function applyMonthData(data) {
+  applyServerSettings(data.settings);
   monthEntries = data.entries || {};
   renderCalendar(new Date(viewYear, viewMonth + 1, 0).getDate());
 }
