@@ -542,7 +542,7 @@ function renderCarousel(photos, startIndex = 0) {
   // 컨테이너가 방금 hidden 상태에서 풀렸을 수 있어, 실제 렌더된 폭을 강제로 읽어온 뒤
   // 퍼센트 대신 픽셀 값으로 슬라이드를 배치한다 (aspect-ratio + display 전환 시
   // flex-basis:%가 낡은 값으로 굳어버리는 렌더링 버그를 피하기 위함).
-  const containerWidth = carouselEl.clientWidth;
+  const containerWidth = carouselEl.getBoundingClientRect().width;
 
   const track = $("carousel-track");
   track.innerHTML = "";
@@ -562,7 +562,7 @@ function renderCarousel(photos, startIndex = 0) {
 
 function updateCarouselUI() {
   carouselEl.scrollLeft = 0; // 트랙이 컨테이너보다 넓어서, 버튼 포커스 시 브라우저가 자동 스크롤시키는 것을 막음
-  const containerWidth = carouselEl.clientWidth;
+  const containerWidth = carouselEl.getBoundingClientRect().width;
   // 스크롤바 등장/소멸으로 폭이 바뀌면 슬라이드 폭도 같이 갱신 (안 하면 다음 슬라이드가 살짝 비어져 보임)
   $("carousel-track").querySelectorAll(".carousel-slide").forEach((s) => { s.style.width = `${containerWidth}px`; });
   $("carousel-track").style.transform = `translateX(${-carouselIndex * containerWidth}px)`;
@@ -605,14 +605,14 @@ carouselEl.addEventListener("pointerdown", (e) => {
 carouselEl.addEventListener("pointermove", (e) => {
   if (!dragging) return;
   dragDeltaX = e.clientX - dragStartX;
-  const containerWidth = carouselEl.clientWidth;
+  const containerWidth = carouselEl.getBoundingClientRect().width;
   $("carousel-track").style.transform = `translateX(${-carouselIndex * containerWidth + dragDeltaX}px)`;
 });
 function endCarouselDrag() {
   if (!dragging) return;
   dragging = false;
   $("carousel-track").classList.remove("dragging");
-  const threshold = carouselEl.clientWidth * 0.18;
+  const threshold = carouselEl.getBoundingClientRect().width * 0.18;
   if (dragDeltaX < -threshold) carouselStep(1);
   else if (dragDeltaX > threshold) carouselStep(-1);
   else updateCarouselUI();
@@ -691,7 +691,7 @@ $("carousel-crop-btn").addEventListener("click", async () => {
   }
 });
 
-/* ---------------- Photo crop (뷰포트 = 잘릴 영역, 사진을 확대/이동) ---------------- */
+/* ---------------- Photo crop (네모를 옮기고 모서리로 크기·비율을 자유롭게) ---------------- */
 /* null 반환 = 취소 (아무 것도 업로드하지 않음) */
 
 function openCropModal(file) {
@@ -699,51 +699,45 @@ function openCropModal(file) {
     const modal = $("crop-modal");
     const img = $("crop-image");
     const stage = $("crop-stage");
-    const zoomInput = $("crop-zoom");
+    const box = $("crop-box");
     const closeBtn = $("crop-close-btn");
     const skipBtn = $("crop-skip-btn");
     const applyBtn = $("crop-apply-btn");
     const url = URL.createObjectURL(file);
+    const MIN = 40;
 
-    let stageSize = 0, baseScale = 1, zoom = 1, offX = 0, offY = 0;
-    let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+    let scale = 1, dw = 0, dh = 0;
+    let x1 = 0, y1 = 0, x2 = 0, y2 = 0; // 잘라낼 네모 (표시 좌표)
+    let mode = null, sx = 0, sy = 0, o = null;
 
-    function effectiveScale() { return baseScale * zoom; }
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-    function clampOffset() {
-      const dw = img.naturalWidth * effectiveScale();
-      const dh = img.naturalHeight * effectiveScale();
-      offX = Math.min(0, Math.max(stageSize - dw, offX));
-      offY = Math.min(0, Math.max(stageSize - dh, offY));
-    }
-
-    function applyTransform() {
-      clampOffset();
-      img.style.transform = `translate(${offX}px, ${offY}px) scale(${effectiveScale()})`;
+    function draw() {
+      box.style.left = `${x1}px`; box.style.top = `${y1}px`;
+      box.style.width = `${x2 - x1}px`; box.style.height = `${y2 - y1}px`;
     }
 
     function onPointerDown(e) {
-      dragging = true;
-      startX = e.clientX; startY = e.clientY;
-      origX = offX; origY = offY;
+      mode = e.target.dataset.h || "move";
+      sx = e.clientX; sy = e.clientY; o = { x1, y1, x2, y2 };
       stage.setPointerCapture(e.pointerId);
     }
     function onPointerMove(e) {
-      if (!dragging) return;
-      offX = origX + (e.clientX - startX);
-      offY = origY + (e.clientY - startY);
-      applyTransform();
+      if (!mode) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (mode === "move") {
+        const w = o.x2 - o.x1, h = o.y2 - o.y1;
+        x1 = clamp(o.x1 + dx, 0, dw - w); y1 = clamp(o.y1 + dy, 0, dh - h);
+        x2 = x1 + w; y2 = y1 + h;
+      } else {
+        if (mode.includes("w")) x1 = clamp(o.x1 + dx, 0, o.x2 - MIN);
+        if (mode.includes("e")) x2 = clamp(o.x2 + dx, o.x1 + MIN, dw);
+        if (mode.includes("n")) y1 = clamp(o.y1 + dy, 0, o.y2 - MIN);
+        if (mode.includes("s")) y2 = clamp(o.y2 + dy, o.y1 + MIN, dh);
+      }
+      draw();
     }
-    function onPointerUp() { dragging = false; }
-    function onZoomInput() {
-      // 뷰포트 중앙이 가리키는 이미지 지점을 확대 전후로 고정 (안 하면 좌상단 기준으로 확대돼서 엉뚱한 곳이 보임)
-      const cx = (stageSize / 2 - offX) / effectiveScale();
-      const cy = (stageSize / 2 - offY) / effectiveScale();
-      zoom = Number(zoomInput.value);
-      offX = stageSize / 2 - cx * effectiveScale();
-      offY = stageSize / 2 - cy * effectiveScale();
-      applyTransform();
-    }
+    function onPointerUp() { mode = null; }
 
     function cleanup(result) {
       URL.revokeObjectURL(url);
@@ -752,7 +746,6 @@ function openCropModal(file) {
       stage.removeEventListener("pointerdown", onPointerDown);
       stage.removeEventListener("pointermove", onPointerMove);
       stage.removeEventListener("pointerup", onPointerUp);
-      zoomInput.removeEventListener("input", onZoomInput);
       closeBtn.removeEventListener("click", onCancel);
       skipBtn.removeEventListener("click", onSkip);
       applyBtn.removeEventListener("click", onApply);
@@ -762,17 +755,12 @@ function openCropModal(file) {
     function onCancel() { cleanup(null); }
     function onSkip() { cleanup(file); }
     function onApply() {
-      const scale = effectiveScale();
-      const cropSize = stageSize / scale;
-      const outputSize = Math.min(Math.round(cropSize), 1600);
+      const cw = (x2 - x1) / scale, ch = (y2 - y1) / scale;
+      const k = Math.min(1, 1600 / Math.max(cw, ch));
       const canvas = document.createElement("canvas");
-      canvas.width = outputSize;
-      canvas.height = outputSize;
-      canvas.getContext("2d").drawImage(
-        img,
-        -offX / scale, -offY / scale, cropSize, cropSize,
-        0, 0, outputSize, outputSize
-      );
+      canvas.width = Math.round(cw * k);
+      canvas.height = Math.round(ch * k);
+      canvas.getContext("2d").drawImage(img, x1 / scale, y1 / scale, cw, ch, 0, 0, canvas.width, canvas.height);
       canvas.toBlob(
         (blob) => cleanup(new File([blob], file.name, { type: "image/jpeg" })),
         "image/jpeg",
@@ -781,21 +769,18 @@ function openCropModal(file) {
     }
 
     img.onload = () => {
-      stageSize = Math.min(window.innerWidth * 0.82, 340);
-      stage.style.width = `${stageSize}px`;
-      stage.style.height = `${stageSize}px`;
-      baseScale = Math.max(stageSize / img.naturalWidth, stageSize / img.naturalHeight);
-      zoom = 1;
-      zoomInput.value = 1;
-      offX = (stageSize - img.naturalWidth * baseScale) / 2;
-      offY = (stageSize - img.naturalHeight * baseScale) / 2;
-      applyTransform();
+      const maxW = Math.min(window.innerWidth * 0.82, 340);
+      scale = Math.min(maxW / img.naturalWidth, 340 / img.naturalHeight, 1);
+      dw = img.naturalWidth * scale; dh = img.naturalHeight * scale;
+      img.style.width = `${dw}px`; img.style.height = `${dh}px`;
+      stage.style.width = `${dw}px`; stage.style.height = `${dh}px`;
+      x1 = dw * 0.1; y1 = dh * 0.1; x2 = dw * 0.9; y2 = dh * 0.9;
+      draw();
     };
 
     stage.addEventListener("pointerdown", onPointerDown);
     stage.addEventListener("pointermove", onPointerMove);
     stage.addEventListener("pointerup", onPointerUp);
-    zoomInput.addEventListener("input", onZoomInput);
     closeBtn.addEventListener("click", onCancel);
     skipBtn.addEventListener("click", onSkip);
     applyBtn.addEventListener("click", onApply);
