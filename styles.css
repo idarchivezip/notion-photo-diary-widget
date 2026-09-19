@@ -302,3 +302,13 @@ body:not(.manage) .preview-note { display: none !important; }
 
 .settings-hint { font-size: 11px; color: var(--text-muted); margin: -4px 0 8px; line-height: 1.4; }
 
+
+/* ---------- Database chooser ---------- */
+.db-list { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.db-item {
+  display: flex; flex-direction: column; gap: 2px; text-align: left;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; cursor: pointer;
+}
+.db-item small { color: var(--text-muted); font-size: 11px; }
+.db-item:disabled { opacity: 0.55; cursor: default; }

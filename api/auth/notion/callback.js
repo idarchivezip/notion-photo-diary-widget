@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { db } from "../../../lib/firebaseAdmin.js";
-import { notionHeaders } from "../../../lib/notionConnection.js";
 
+// 연결만 만들고, 어떤 데이터베이스를 쓸지는 이후 선택 화면(/api/databases)에서 정한다.
 export default async function handler(req, res) {
   const { code, state, error } = req.query;
 
@@ -33,67 +33,12 @@ export default async function handler(req, res) {
       res.status(500).send("노션 인증 실패: " + JSON.stringify(tokenData));
       return;
     }
-    const accessToken = tokenData.access_token;
-
-    // 사용자가 연결 시 공유한 페이지 중 하나를 부모로 사용
-    const searchRes = await fetch("https://api.notion.com/v1/search", {
-      method: "POST",
-      headers: notionHeaders(accessToken),
-      body: JSON.stringify({ filter: { property: "object", value: "page" }, page_size: 1 }),
-    });
-    const searchData = await searchRes.json();
-    const parentPage = searchData.results?.[0];
-    if (!parentPage) {
-      res.status(400).send(
-        "연결할 페이지를 찾지 못했어요. 노션 연결 화면에서 다이어리를 저장할 페이지를 선택했는지 확인해주세요."
-      );
-      return;
-    }
-
-    const dbRes = await fetch("https://api.notion.com/v1/databases", {
-      method: "POST",
-      headers: notionHeaders(accessToken),
-      body: JSON.stringify({
-        parent: { type: "page_id", page_id: parentPage.id },
-        title: [{ type: "text", text: { content: "포토 다이어리" } }],
-        description: [{ type: "text", text: { content: "행을 추가해서 날짜·사진·일기·기분(1~5)을 입력하면 포토 다이어리 위젯에 표시돼요. 사진은 '사진' 칸에 파일로 올리세요. 캘린더로 보면 편해요: 위쪽 '+' → 보기 추가 → 캘린더 → 날짜 속성 '날짜'." } }],
-        properties: {
-          이름: { title: {} },
-          날짜: { date: {} },
-          일기: { rich_text: {} },
-          사진: { files: {} },
-          기분: { number: {} },
-        },
-      }),
-    });
-    const dbData = await dbRes.json();
-    if (!dbRes.ok) {
-      res.status(500).send("데이터베이스 생성 실패: " + JSON.stringify(dbData));
-      return;
-    }
-
-    // 입력 방법을 보여주는 예시 행. 실패해도 연결 자체는 계속 진행.
-    const today = new Date().toISOString().slice(0, 10);
-    await fetch("https://api.notion.com/v1/pages", {
-      method: "POST",
-      headers: notionHeaders(accessToken),
-      body: JSON.stringify({
-        parent: { database_id: dbData.id },
-        properties: {
-          이름: { title: [{ text: { content: "예시 (지우고 새로 써도 돼요)" } }] },
-          날짜: { date: { start: today } },
-          일기: { rich_text: [{ text: { content: "이렇게 날짜·일기·기분(1~5)을 적고, 사진 칸에 사진을 올리면 위젯에 보여요." } }] },
-          기분: { number: 5 },
-        },
-      }),
-    }).catch(() => {});
 
     const workspaceToken = crypto.randomUUID().replace(/-/g, "");
     await db.collection("connections").doc(workspaceToken).set({
-      accessToken,
-      databaseId: dbData.id,
+      accessToken: tokenData.access_token,
+      databaseId: null,
       workspaceName: tokenData.workspace_name || "",
-      plan: "free",
       createdAt: new Date().toISOString(),
     });
 

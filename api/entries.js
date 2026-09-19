@@ -21,6 +21,12 @@ export default async function handler(req, res) {
     return;
   }
 
+  if (!conn.databaseId) {
+    // 아직 사용할 데이터베이스를 고르지 않은 새 연결
+    res.status(200).json({ entries: {}, settings: conn.settings || null, viewOnly: !!conn.readOnly, needsDb: true });
+    return;
+  }
+
   try {
     const { start, end } = req.query;
     const queryRes = await fetch(`https://api.notion.com/v1/databases/${conn.databaseId}/query`, {

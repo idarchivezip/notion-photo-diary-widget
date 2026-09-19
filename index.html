@@ -13,7 +13,7 @@
   <section id="connect-screen" class="screen" hidden>
     <div class="connect-card">
       <h1 class="brand">📔 포토 다이어리</h1>
-      <p class="sub">노션에 연결하면 <b>포토 다이어리</b> 데이터베이스가 내 노션에 자동으로 만들어져요. 사진과 일기는 노션에 직접 입력하고, 이 위젯은 그걸 캘린더와 사진첩으로 예쁘게 보여줘요. 연결할 때 데이터베이스를 만들 페이지를 하나 골라주세요.</p>
+      <p class="sub">노션에 연결한 뒤 <b>새 데이터베이스를 만들지, 기존 데이터베이스를 쓸지</b> 고를 수 있어요. 사진과 일기는 노션에 직접 입력하고, 이 위젯은 그걸 캘린더와 사진첩으로 예쁘게 보여줘요. 기존 데이터베이스를 쓰려면 노션 연결 화면에서 그 데이터베이스를 공유(체크)해주세요.</p>
       <a id="connect-btn" class="connect-btn" href="/api/auth/notion/start">노션에 연결하기</a>
       <p class="connect-error" id="connect-error" hidden></p>
     </div>
@@ -116,6 +116,12 @@
         </div>
 
         <div class="settings-group">
+          <p class="settings-label">데이터베이스</p>
+          <p class="settings-hint">사진·일기를 입력하는 노션 데이터베이스를 바꿀 수 있어요. 보기용 링크도 같이 바뀌어요.</p>
+          <button id="change-db-btn" class="outline-btn" type="button">데이터베이스 변경</button>
+        </div>
+
+        <div class="settings-group">
           <p class="settings-label">노션 임베드용 링크 (보기 전용)</p>
           <p class="settings-hint">노션에는 이 링크를 임베드하세요. 설정·재발급 같은 관리 기능이 없어서 새어 나가도 안전해요.</p>
           <button id="create-view-link-btn" class="outline-btn" type="button">보기용 링크 보기</button>
@@ -125,6 +131,20 @@
           </div>
           <button id="renew-view-link-btn" class="text-btn danger" type="button" hidden>보기용 링크 재발급</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 데이터베이스 선택 모달 -->
+  <div id="db-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <button id="db-close-btn" class="modal-close" aria-label="닫기">×</button>
+      <div class="modal-card-inner">
+        <h3>사용할 데이터베이스</h3>
+        <p class="settings-hint">사진·일기를 입력할 노션 데이터베이스를 고르세요. 필요한 칸(날짜·일기·사진·기분)이 없으면 자동으로 추가하고, 기존 내용은 건드리지 않아요.</p>
+        <button id="db-create-btn" class="outline-btn" type="button">➕ 새로 만들기</button>
+        <div id="db-list" class="db-list"></div>
+        <p class="settings-hint">목록에 없으면 노션 연결 화면에서 그 데이터베이스를 공유(체크)했는지 확인하세요.</p>
       </div>
     </div>
   </div>

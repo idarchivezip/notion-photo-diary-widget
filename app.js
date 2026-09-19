@@ -144,6 +144,64 @@ async function regenerateLink() {
 
 $("regenerate-link-btn").addEventListener("click", regenerateLink);
 
+/* ---------------- 데이터베이스 선택 ---------------- */
+
+const dbModal = $("db-modal");
+
+async function openDbModal() {
+  settingsModal.hidden = true;
+  dbModal.hidden = false;
+  const list = $("db-list");
+  list.textContent = "불러오는 중...";
+  try {
+    const res = await fetch(`/api/databases?w=${workspaceToken}`);
+    if (!res.ok) throw new Error("list_failed");
+    const { databases, current } = await res.json();
+    list.textContent = "";
+    if (!databases.length) list.textContent = "공유된 데이터베이스가 없어요. 새로 만들기를 눌러주세요.";
+    databases.forEach((d) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "db-item";
+      item.disabled = !d.ok;
+      const name = document.createElement("strong");
+      name.textContent = d.title + (d.id === current ? " (사용 중)" : "");
+      const note = document.createElement("small");
+      note.textContent = d.problem || (d.missing.length ? `${d.missing.join("·")} 칸을 자동으로 추가해요` : "바로 사용할 수 있어요");
+      item.append(name, note);
+      item.addEventListener("click", () => chooseDb({ action: "select", databaseId: d.id }));
+      list.appendChild(item);
+    });
+  } catch {
+    list.textContent = "목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.";
+  }
+}
+
+async function chooseDb(body) {
+  dbModal.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+  try {
+    const res = await fetch("/api/databases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ w: workspaceToken, ...body }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "failed");
+    dbModal.hidden = true;
+    monthCache = {};
+    loadMonth();
+  } catch (err) {
+    alert(`데이터베이스를 연결하지 못했어요. ${err.message}`);
+    openDbModal();
+    $("db-create-btn").disabled = false;
+    $("db-close-btn").disabled = false;
+  }
+}
+
+$("change-db-btn").addEventListener("click", openDbModal);
+$("db-create-btn").addEventListener("click", () => chooseDb({ action: "create" }));
+$("db-close-btn").addEventListener("click", () => { dbModal.hidden = true; });
+dbModal.addEventListener("click", (e) => { if (e.target === dbModal) dbModal.hidden = true; });
+
 /* ---------------- 보기용 링크 (노션 임베드용) ---------------- */
 
 async function requestViewLink(renew) {
@@ -309,7 +367,7 @@ function init() {
   connectScreen.hidden = true;
   mainScreen.hidden = false;
 
-  if (justConnected) showWelcomeBanner("🎉 노션 연결이 완료됐어요! 아래는 나만 보관할 <b>관리용 링크</b>예요. 노션 임베드에는 ⚙️ 설정 → 보기용 링크를 쓰세요.");
+  if (justConnected) showWelcomeBanner("🎉 노션 연결이 완료됐어요! 사용할 데이터베이스를 고르세요. 아래는 나만 보관할 <b>관리용 링크</b>예요. 노션 임베드에는 ⚙️ 설정 → 보기용 링크를 쓰세요.");
 
   const now = new Date();
   viewYear = now.getFullYear();
@@ -407,6 +465,7 @@ async function loadMonth() {
     monthCache[key] = { data, at: Date.now() };
     applyMonthData(data);
     prefetchAdjacentMonths();
+    if (data.needsDb && !data.viewOnly) openDbModal();
   } catch (err) {
     if (err.status === 401) {
       alert("연결이 만료되었거나 잘못된 링크예요. 다시 연결해주세요.");
