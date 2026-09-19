@@ -202,6 +202,7 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 }
 .modal-card-inner {
   overflow-y: auto;
+  scrollbar-gutter: stable; /* 스크롤바 등장/소멸로 폭이 바뀌면서 캐러셀이 어긋나는 걸 근본적으로 막음 */
   padding: 20px 16px 28px;
 }
 @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -283,6 +284,7 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
   border-radius: 8px; padding: 7px 0; font-size: 12px; cursor: pointer;
 }
 .carousel-action-btn.danger { color: #c94545; }
+.carousel-action-btn:disabled { opacity: 0.6; cursor: default; color: var(--text); }
 
 .upload-label {
   display: inline-block;
@@ -366,15 +368,16 @@ body.read-only .day-cell:not(.has-photo):not(.has-entry) { cursor: default; }
 /* ---------- Crop modal ---------- */
 .crop-card { max-width: 380px; text-align: center; }
 .crop-stage {
-  position: relative; display: inline-block;
+  position: relative; overflow: hidden; display: inline-block;
   margin: 12px auto; max-width: 100%;
+  border: 2px solid var(--accent);
   touch-action: none;
-}
-#crop-image { display: block; max-width: 100%; user-select: none; -webkit-user-drag: none; }
-.crop-box {
-  position: absolute; border: 2px solid #fff;
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
   cursor: move;
 }
+#crop-image {
+  position: absolute; top: 0; left: 0; transform-origin: 0 0;
+  user-select: none; -webkit-user-drag: none;
+}
+.crop-zoom { width: 100%; margin-top: 12px; accent-color: var(--accent); }
 .crop-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 10px; }
 .crop-actions .save-btn { flex: 1; }

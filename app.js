@@ -668,15 +668,19 @@ $("carousel-crop-btn").addEventListener("click", async () => {
     const blob = await fetch(photo.url).then((r) => r.blob());
     const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
     const cropped = await openCropModal(file);
+    if (!cropped) return; // 취소함
 
     btn.textContent = "업로드 중...";
     const sign = await getCloudinarySign(selectedDateStr, true);
     const result = await uploadToCloudinary(cropped, sign);
     const newPhoto = { url: result.secure_url, name: photo.name };
-    await patchEntry({ addPhoto: newPhoto, removePhoto: { url: photo.url } });
 
     const entry = monthEntries[selectedDateStr];
-    entry.photos = entry.photos.map((p) => (p.url === photo.url ? newPhoto : p));
+    const updatedPhotos = entry.photos.map((p) => (p.url === photo.url ? newPhoto : p));
+    // 클라이언트가 이미 최종 사진 목록을 알고 있으니, pageId를 같이 보내서
+    // 서버가 "날짜로 페이지 찾기" 조회를 건너뛸 수 있게 함 (교체 하나만으로도 노션 호출이 여러 번 겹쳐 느려지는 걸 줄임).
+    await patchEntry({ reorderPhotos: updatedPhotos, pageId: entry.id });
+    entry.photos = updatedPhotos;
     renderCarousel(entry.photos, keepIndex);
     updateCellPreview(selectedDateStr);
   } catch {
@@ -687,57 +691,86 @@ $("carousel-crop-btn").addEventListener("click", async () => {
   }
 });
 
-/* ---------------- Photo crop ---------------- */
+/* ---------------- Photo crop (뷰포트 = 잘릴 영역, 사진을 확대/이동) ---------------- */
+/* null 반환 = 취소 (아무 것도 업로드하지 않음) */
 
 function openCropModal(file) {
   return new Promise((resolve) => {
     const modal = $("crop-modal");
     const img = $("crop-image");
     const stage = $("crop-stage");
-    const box = $("crop-box");
+    const zoomInput = $("crop-zoom");
+    const closeBtn = $("crop-close-btn");
     const skipBtn = $("crop-skip-btn");
     const applyBtn = $("crop-apply-btn");
     const url = URL.createObjectURL(file);
 
-    let scale = 1, dw = 0, dh = 0, size = 0, boxX = 0, boxY = 0;
+    let stageSize = 0, baseScale = 1, zoom = 1, offX = 0, offY = 0;
     let dragging = false, startX = 0, startY = 0, origX = 0, origY = 0;
+
+    function effectiveScale() { return baseScale * zoom; }
+
+    function clampOffset() {
+      const dw = img.naturalWidth * effectiveScale();
+      const dh = img.naturalHeight * effectiveScale();
+      offX = Math.min(0, Math.max(stageSize - dw, offX));
+      offY = Math.min(0, Math.max(stageSize - dh, offY));
+    }
+
+    function applyTransform() {
+      clampOffset();
+      img.style.transform = `translate(${offX}px, ${offY}px) scale(${effectiveScale()})`;
+    }
 
     function onPointerDown(e) {
       dragging = true;
       startX = e.clientX; startY = e.clientY;
-      origX = boxX; origY = boxY;
-      box.setPointerCapture(e.pointerId);
+      origX = offX; origY = offY;
+      stage.setPointerCapture(e.pointerId);
     }
     function onPointerMove(e) {
       if (!dragging) return;
-      boxX = Math.min(Math.max(0, origX + (e.clientX - startX)), dw - size);
-      boxY = Math.min(Math.max(0, origY + (e.clientY - startY)), dh - size);
-      box.style.left = `${boxX}px`;
-      box.style.top = `${boxY}px`;
+      offX = origX + (e.clientX - startX);
+      offY = origY + (e.clientY - startY);
+      applyTransform();
     }
     function onPointerUp() { dragging = false; }
+    function onZoomInput() {
+      // 뷰포트 중앙이 가리키는 이미지 지점을 확대 전후로 고정 (안 하면 좌상단 기준으로 확대돼서 엉뚱한 곳이 보임)
+      const cx = (stageSize / 2 - offX) / effectiveScale();
+      const cy = (stageSize / 2 - offY) / effectiveScale();
+      zoom = Number(zoomInput.value);
+      offX = stageSize / 2 - cx * effectiveScale();
+      offY = stageSize / 2 - cy * effectiveScale();
+      applyTransform();
+    }
 
     function cleanup(result) {
       URL.revokeObjectURL(url);
       modal.hidden = true;
       img.onload = null;
-      box.removeEventListener("pointerdown", onPointerDown);
-      box.removeEventListener("pointermove", onPointerMove);
-      box.removeEventListener("pointerup", onPointerUp);
+      stage.removeEventListener("pointerdown", onPointerDown);
+      stage.removeEventListener("pointermove", onPointerMove);
+      stage.removeEventListener("pointerup", onPointerUp);
+      zoomInput.removeEventListener("input", onZoomInput);
+      closeBtn.removeEventListener("click", onCancel);
       skipBtn.removeEventListener("click", onSkip);
       applyBtn.removeEventListener("click", onApply);
       resolve(result);
     }
 
+    function onCancel() { cleanup(null); }
     function onSkip() { cleanup(file); }
     function onApply() {
-      const outputSize = Math.min(Math.round(size / scale), 1600);
+      const scale = effectiveScale();
+      const cropSize = stageSize / scale;
+      const outputSize = Math.min(Math.round(cropSize), 1600);
       const canvas = document.createElement("canvas");
       canvas.width = outputSize;
       canvas.height = outputSize;
       canvas.getContext("2d").drawImage(
         img,
-        boxX / scale, boxY / scale, size / scale, size / scale,
+        -offX / scale, -offY / scale, cropSize, cropSize,
         0, 0, outputSize, outputSize
       );
       canvas.toBlob(
@@ -748,27 +781,22 @@ function openCropModal(file) {
     }
 
     img.onload = () => {
-      const maxW = Math.min(window.innerWidth * 0.82, 340);
-      scale = Math.min(maxW / img.naturalWidth, 340 / img.naturalHeight, 1);
-      dw = img.naturalWidth * scale;
-      dh = img.naturalHeight * scale;
-      img.style.width = `${dw}px`;
-      img.style.height = `${dh}px`;
-      stage.style.width = `${dw}px`;
-      stage.style.height = `${dh}px`;
-
-      size = Math.min(dw, dh);
-      boxX = (dw - size) / 2;
-      boxY = (dh - size) / 2;
-      box.style.width = `${size}px`;
-      box.style.height = `${size}px`;
-      box.style.left = `${boxX}px`;
-      box.style.top = `${boxY}px`;
+      stageSize = Math.min(window.innerWidth * 0.82, 340);
+      stage.style.width = `${stageSize}px`;
+      stage.style.height = `${stageSize}px`;
+      baseScale = Math.max(stageSize / img.naturalWidth, stageSize / img.naturalHeight);
+      zoom = 1;
+      zoomInput.value = 1;
+      offX = (stageSize - img.naturalWidth * baseScale) / 2;
+      offY = (stageSize - img.naturalHeight * baseScale) / 2;
+      applyTransform();
     };
 
-    box.addEventListener("pointerdown", onPointerDown);
-    box.addEventListener("pointermove", onPointerMove);
-    box.addEventListener("pointerup", onPointerUp);
+    stage.addEventListener("pointerdown", onPointerDown);
+    stage.addEventListener("pointermove", onPointerMove);
+    stage.addEventListener("pointerup", onPointerUp);
+    zoomInput.addEventListener("input", onZoomInput);
+    closeBtn.addEventListener("click", onCancel);
     skipBtn.addEventListener("click", onSkip);
     applyBtn.addEventListener("click", onApply);
 
@@ -824,6 +852,7 @@ $("photo-input").addEventListener("change", async (e) => {
     }
 
     const toUpload = await openCropModal(file);
+    if (!toUpload) continue; // 취소함
 
     try {
       statusEl.textContent = `업로드 중... ${done + 1} / ${files.length}`;

@@ -9,6 +9,7 @@ function toRichText(text) {
 function pageToEntry(page) {
   const props = page.properties;
   return {
+    id: page.id,
     text: (props["일기"]?.rich_text || []).map((t) => t.plain_text).join(""),
     rating: props["기분"]?.number || 0,
     photos: (props["사진"]?.files || []).map((f) => ({
@@ -85,13 +86,16 @@ export default async function handler(req, res) {
         return;
       }
 
-      const { date, text, addPhoto, removePhoto, rating, reorderPhotos } = req.body;
+      const { date, text, addPhoto, removePhoto, rating, reorderPhotos, pageId } = req.body;
       if (!date) {
         res.status(400).json({ error: "date_required" });
         return;
       }
 
-      let page = await findPageForDate(conn, date);
+      // pageId가 오면(클라이언트가 이미 알고 있는 경우, 예: 사진 교체) 날짜로 페이지 찾는 노션 조회를 건너뜀.
+      // 이 지름길은 reorderPhotos처럼 클라이언트가 최종 사진 목록을 통째로 보내는 경우에만 안전함 —
+      // addPhoto 단독(한도 검사가 기존 파일 목록을 필요로 함)과는 같이 쓰지 않는다.
+      let page = pageId ? { id: pageId } : await findPageForDate(conn, date);
       const limit = PLAN_LIMITS[conn.plan || "free"];
 
       if (addPhoto && !removePhoto) {
