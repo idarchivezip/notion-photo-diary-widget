@@ -56,7 +56,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         parent: { type: "page_id", page_id: parentPage.id },
         title: [{ type: "text", text: { content: "포토 다이어리" } }],
-        description: [{ type: "text", text: { content: "행을 추가해서 날짜·사진·일기·기분(1~5)을 입력하면 포토 다이어리 위젯에 표시돼요. 사진은 '사진' 칸에 파일로 올리세요." } }],
+        description: [{ type: "text", text: { content: "행을 추가해서 날짜·사진·일기·기분(1~5)을 입력하면 포토 다이어리 위젯에 표시돼요. 사진은 '사진' 칸에 파일로 올리세요. 캘린더로 보면 편해요: 위쪽 '+' → 보기 추가 → 캘린더 → 날짜 속성 '날짜'." } }],
         properties: {
           이름: { title: {} },
           날짜: { date: {} },
