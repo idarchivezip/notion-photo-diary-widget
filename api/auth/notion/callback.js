@@ -56,6 +56,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         parent: { type: "page_id", page_id: parentPage.id },
         title: [{ type: "text", text: { content: "포토 다이어리" } }],
+        description: [{ type: "text", text: { content: "행을 추가해서 날짜·사진·일기·기분(1~5)을 입력하면 포토 다이어리 위젯에 표시돼요. 사진은 '사진' 칸에 파일로 올리세요." } }],
         properties: {
           이름: { title: {} },
           날짜: { date: {} },
@@ -70,6 +71,22 @@ export default async function handler(req, res) {
       res.status(500).send("데이터베이스 생성 실패: " + JSON.stringify(dbData));
       return;
     }
+
+    // 입력 방법을 보여주는 예시 행. 실패해도 연결 자체는 계속 진행.
+    const today = new Date().toISOString().slice(0, 10);
+    await fetch("https://api.notion.com/v1/pages", {
+      method: "POST",
+      headers: notionHeaders(accessToken),
+      body: JSON.stringify({
+        parent: { database_id: dbData.id },
+        properties: {
+          이름: { title: [{ text: { content: "예시 (지우고 새로 써도 돼요)" } }] },
+          날짜: { date: { start: today } },
+          일기: { rich_text: [{ text: { content: "이렇게 날짜·일기·기분(1~5)을 적고, 사진 칸에 사진을 올리면 위젯에 보여요." } }] },
+          기분: { number: 5 },
+        },
+      }),
+    }).catch(() => {});
 
     const workspaceToken = crypto.randomUUID().replace(/-/g, "");
     await db.collection("connections").doc(workspaceToken).set({
