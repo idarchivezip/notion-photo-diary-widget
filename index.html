@@ -20,7 +20,7 @@
   </section>
 
   <div id="welcome-banner" class="welcome-banner" hidden>
-    <p id="welcome-text">✨ 노션 연결이 완료됐어요! 노션에 <b>포토 다이어리</b> 데이터베이스가 만들어졌어요. 거기에 날짜·사진·일기·기분(1~5)을 입력하면 이 위젯에 보여요. 입력은 데이터베이스 위쪽 <b>+ → 보기 추가 → 캘린더</b>로 보면 편해요. 아래 링크는 Notion에 임베드하세요.</p>
+    <p id="welcome-text">🔑 <b>관리용 링크</b>예요. 나만 보관하세요. 노션 임베드에는 ⚙️ 설정 → <b>노션 임베드용 링크(보기 전용)</b>를 쓰세요.</p>
     <div class="link-card">
       <span class="link-card-text" id="my-link-input">-</span>
       <button id="copy-link-btn" class="link-copy-btn">복사</button>
@@ -40,7 +40,7 @@
       </div>
       <div class="topbar-right">
         <button id="show-settings-btn" class="text-btn">⚙️ 설정</button>
-        <button id="show-link-btn" class="text-btn">🔗 내 링크</button>
+        <button id="show-link-btn" class="text-btn">🔑 관리 링크</button>
       </div>
     </header>
 
@@ -48,7 +48,7 @@
       <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
     </div>
 
-    <p class="preview-note">👀 미리보기예요. 노션에 임베드하면 설정·링크 버튼 없이 이렇게 보여요. 위 ⚙️ 설정에서 테마를 바꾸면 임베드에도 적용돼요.</p>
+    <p class="preview-note">👀 관리 화면이에요. 노션에는 ⚙️ 설정의 <b>보기용 링크</b>를 임베드하세요. 테마를 바꾸면 임베드에도 적용돼요.</p>
 
     <div id="calendar-grid" class="calendar-grid"></div>
   </section>
@@ -113,6 +113,17 @@
             <button type="button" data-value="on">표시</button>
             <button type="button" data-value="off">숨기기</button>
           </div>
+        </div>
+
+        <div class="settings-group">
+          <p class="settings-label">노션 임베드용 링크 (보기 전용)</p>
+          <p class="settings-hint">노션에는 이 링크를 임베드하세요. 설정·재발급 같은 관리 기능이 없어서 새어 나가도 안전해요.</p>
+          <button id="create-view-link-btn" class="outline-btn" type="button">보기용 링크 보기</button>
+          <div class="link-card" id="view-link-row" hidden>
+            <span class="link-card-text" id="view-link-input">-</span>
+            <button id="copy-view-link-btn" class="link-copy-btn">복사</button>
+          </div>
+          <button id="renew-view-link-btn" class="text-btn danger" type="button" hidden>보기용 링크 재발급</button>
         </div>
       </div>
     </div>

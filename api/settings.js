@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     return;
   }
   const { w, settings: s } = req.body || {};
-  if (!(await getConnection(w))) {
+  const conn = await getConnection(w);
+  if (!conn || conn.readOnly) {
     res.status(401).json({ error: "invalid_token" });
     return;
   }

@@ -44,7 +44,9 @@ export default async function handler(req, res) {
       const date = page.properties["날짜"]?.date?.start;
       if (date) entries[date.slice(0, 10)] = pageToEntry(page);
     }
-    res.status(200).json({ entries, settings: conn.settings || null });
+    // 보기용 링크는 설정을 자기 문서가 아니라 관리용 문서에서 읽어서, 관리 화면에서 바꾼 테마가 바로 반영되게 함.
+    const owner = conn.readOnly && conn.adminToken ? await getConnection(conn.adminToken) : conn;
+    res.status(200).json({ entries, settings: owner?.settings || null, viewOnly: !!conn.readOnly });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

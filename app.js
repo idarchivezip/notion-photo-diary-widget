@@ -103,7 +103,7 @@ function myLinkUrl() {
 }
 
 function showWelcomeBanner(message) {
-  if (message) $("welcome-text").textContent = message;
+  if (message) $("welcome-text").innerHTML = message;
   $("my-link-input").textContent = myLinkUrl();
   $("welcome-banner").hidden = false;
 }
@@ -139,16 +139,62 @@ async function regenerateLink() {
   url.searchParams.delete("connected");
   history.replaceState({}, "", url.toString());
 
-  showWelcomeBanner("🔄 링크가 재발급되었어요! 이전 링크는 더 이상 동작하지 않습니다. 아래 새 링크로 Notion embed 주소를 교체해주세요.");
+  showWelcomeBanner("🔄 관리용 링크가 재발급되었어요. 이전 관리용 링크는 더 이상 동작하지 않아요. (노션 임베드용 보기 링크는 그대로 작동해요.)");
 }
 
 $("regenerate-link-btn").addEventListener("click", regenerateLink);
+
+/* ---------------- 보기용 링크 (노션 임베드용) ---------------- */
+
+async function requestViewLink(renew) {
+  const res = await fetch("/api/create-view-link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ w: workspaceToken, renew }),
+  });
+  if (!res.ok) throw new Error("view_link_failed");
+  return (await res.json()).token;
+}
+
+function showViewLink(token) {
+  const url = new URL(location.href);
+  url.searchParams.set("w", token);
+  url.searchParams.delete("connected");
+  $("view-link-input").textContent = url.toString();
+  $("view-link-row").hidden = false;
+  $("renew-view-link-btn").hidden = false;
+}
+
+async function runViewLink(btn, renew) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "생성 중...";
+  try {
+    showViewLink(await requestViewLink(renew));
+  } catch {
+    alert("보기용 링크를 만들지 못했어요. 잠시 후 다시 시도해주세요.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+$("create-view-link-btn").addEventListener("click", () => runViewLink($("create-view-link-btn"), false));
+$("renew-view-link-btn").addEventListener("click", () => {
+  if (confirm("보기용 링크를 재발급하면 지금 노션에 임베드한 링크가 멈춰요. 새 링크로 임베드를 바꿔야 해요. 계속할까요?")) {
+    runViewLink($("renew-view-link-btn"), true);
+  }
+});
+$("view-link-input").addEventListener("click", () => selectText($("view-link-input")));
+$("copy-view-link-btn").addEventListener("click", async () => {
+  const ok = await copyText($("view-link-input").textContent);
+  flashCopyButton($("copy-view-link-btn"), ok, $("view-link-input"));
+});
 
 /* ---------------- Settings UI ---------------- */
 
 // 임베드(iframe) 안에서는 저장소가 분리돼 사이트에서 바꾼 테마가 안 먹으므로, 설정은 서버에 저장해 양쪽에 적용한다.
 const embedded = window.self !== window.top;
-document.body.classList.toggle("embedded", embedded);
 
 let saveTimer;
 function saveSettingsToServer() {
@@ -263,7 +309,7 @@ function init() {
   connectScreen.hidden = true;
   mainScreen.hidden = false;
 
-  if (justConnected) showWelcomeBanner("🎉 노션 연결이 완료됐어요! 아래 링크를 복사해서 Notion에 embed하세요.");
+  if (justConnected) showWelcomeBanner("🎉 노션 연결이 완료됐어요! 아래는 나만 보관할 <b>관리용 링크</b>예요. 노션 임베드에는 ⚙️ 설정 → 보기용 링크를 쓰세요.");
 
   const now = new Date();
   viewYear = now.getFullYear();
@@ -397,6 +443,8 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function applyMonthData(data) {
+  // 관리 화면(설정·링크)은 관리용 링크로 직접 열었을 때만. 보기용 링크나 임베드 안에서는 숨김.
+  document.body.classList.toggle("manage", !data.viewOnly && !embedded);
   applyServerSettings(data.settings);
   monthEntries = data.entries || {};
   renderCalendar(new Date(viewYear, viewMonth + 1, 0).getDate());
